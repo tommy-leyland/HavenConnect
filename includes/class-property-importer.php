@@ -78,6 +78,26 @@ class HavenConnect_Property_Importer {
         return true;
     }
 
+    /* Ameneties */
+    public function import_default_amenities($apiKey) {
+
+        $list = $this->api->get_default_amenities($apiKey);
+        if (!$list || !is_array($list)) {
+            $this->logger->log("No amenity list found.");
+            return;
+        }
+
+        foreach ($list as $amenity) {
+            $name = $amenity['name'] ?? null;
+            if (!$name) continue;
+
+            if (!term_exists($name, 'hcn_feature')) {
+                wp_insert_term($name, 'hcn_feature');
+                $this->logger->log("Added feature term: $name");
+            }
+        }
+    }
+
     /**
     * Imports ONE property given the 'Featured list' payload shape.
     * Reuses the existing steps: upsert, tags, photos, meta, availability.

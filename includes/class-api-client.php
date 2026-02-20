@@ -165,6 +165,17 @@ class HavenConnect_Api_Client {
         return [];
     }
 
+    /* Ameneties */
+    public function get_default_amenities($apiKey) {
+        $endpoint = [
+            "https://platform.hostfully.com/api/v3/amenities" => [
+                'X-HOSTFULLY-APIKEY' => $apiKey
+            ]
+        ];
+
+        return $this->request($endpoint);
+    }
+
     /**
      * Fetch daily calendar (availability + pricing + rules) for a property (Hostfully v3.2).
      * Expected response: { "calendar": [ { "date": "YYYY-MM-DD", "available": true, "price": 123.45, "minStay": 2, "maxStay": 0, "closedToArrival": false, "closedToDeparture": false }, ... ] }

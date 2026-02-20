@@ -26,6 +26,23 @@ class HavenConnect_Admin {
         add_action('admin_menu',        [$this, 'menu']);
         add_action('admin_init',        [$this, 'settings_init']);
         add_action('admin_post_'.self::ACTION, [$this, 'handle_import']);
+        add_action('admin_init', function() {
+            if (isset($_POST['hcn_action']) && $_POST['hcn_action'] === 'import_features') {
+
+                check_admin_referer('hcn_import_features');
+
+                $opts = get_option(HavenConnect_Admin::OPTION, []);
+                $api  = $opts['api_key'] ?? '';
+
+                $importer = $GLOBALS['havenconnect']['importer'] ?? null;
+                if ($importer) {
+                    $importer->import_default_amenities($api);
+                }
+
+                wp_redirect(admin_url('options-general.php?page=havenconnect'));
+                exit;
+            }
+        });
     }
 
     public function menu() {
@@ -110,6 +127,15 @@ class HavenConnect_Admin {
                     do_settings_sections('havenconnect');
                     submit_button('Save Settings');
                 ?>
+            </form>
+
+            <hr>
+
+            <h2>Import Default Amenity List</h2>
+            <form method="post" action="">
+                <?php wp_nonce_field('hcn_import_features'); ?>
+                <input type="hidden" name="hcn_action" value="import_features">
+                <?php submit_button('Import Features (Amenities)'); ?>
             </form>
 
             <hr>
