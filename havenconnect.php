@@ -36,7 +36,6 @@ hcn_require('class-property-importer.php');
 hcn_require('class-admin-metabox.php');
 hcn_require('class-admin.php');
 hcn_require('admin-save-hooks.php');
-hcn_require('class-import-ajax.php');
 /* hcn_require('class-import-cron.php'); */
 
 /**
@@ -102,6 +101,7 @@ add_action('init', function () use ($logger, $tax) {
     }
 }, 10);
 
+hcn_require('class-import-ajax.php');
 
 /**
  * Always show native WP Custom Fields box if ACF is active (ACF hides it by default).
