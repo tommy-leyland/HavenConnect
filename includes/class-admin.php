@@ -97,30 +97,177 @@ class HavenConnect_Admin {
      * Main settings page markup
      */
     public function render_settings_page() {
+        $opts  = get_option(self::OPTION, []);
+        $nonce = wp_create_nonce('hcn_import_nonce');
         ?>
         <div class="wrap">
             <h1>HavenConnect</h1>
 
+            <!-- SETTINGS FORM -->
             <form method="post" action="options.php">
                 <?php
-                settings_fields(self::OPTION);
-                do_settings_sections('havenconnect');
-                submit_button('Save Settings');
+                    settings_fields(self::OPTION);
+                    do_settings_sections('havenconnect');
+                    submit_button('Save Settings');
                 ?>
             </form>
 
             <hr>
-            <h2>Run Import</h2>
-            <p>Imports up to <strong>10 Featured</strong> properties, including tags + photos.</p>
 
-            <form method="post"
-                  action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                  <?php wp_nonce_field(self::ACTION); ?>
-                  <input type="hidden" name="action"
-                         value="<?php echo esc_attr(self::ACTION); ?>">
-                  <?php submit_button('Run Featured Import', 'primary'); ?>
-            </form>
+            <!-- AJAX IMPORT SECTION -->
+            <h2>Run Import (AJAX)</h2>
+            <p>
+                Imports all Featured properties via background AJAX requests.
+                Zero timeouts, live progress below.
+            </p>
 
+            <div id="hcn-import-ui" style="padding:12px;border:1px solid #ddd;background:#fafafa;margin-bottom:20px;">
+                <button id="hcn-import-start" class="button button-primary">
+                    Run AJAX Import
+                </button>
+                <span id="hcn-import-status" style="margin-left:10px;font-weight:bold;"></span>
+
+                <div id="hcn-import-log"
+                    style="margin-top:12px;max-height:300px;overflow:auto;background:#fff;border:1px solid #ccc;padding:10px;font-size:12px;">
+                </div>
+            </div>
+
+            <!-- NONCE FOR AJAX -->
+            <script>
+            const HCN_IMPORT_NONCE = "<?php echo esc_js($nonce); ?>";
+            const HCN_AJAX_URL     = "<?php echo esc_js(admin_url('admin-ajax.php')); ?>";
+            </script>
+
+            <!-- AJAX IMPORT SCRIPT -->
+            <script>
+            (function(){
+
+            const ajaxUrl = HCN_AJAX_URL;
+            const nonce   = HCN_IMPORT_NONCE;
+
+            const startBtn = document.getElementById('hcn-import-start');
+            const statusEl = document.getElementById('hcn-import-status');
+            const logEl    = document.getElementById('hcn-import-log');
+
+            // --- PROGRESS BAR ---
+            let barContainer = document.createElement('div');
+            barContainer.style.width = "100%";
+            barContainer.style.height = "18px";
+            barContainer.style.background = "#e2e2e2";
+            barContainer.style.marginTop = "10px";
+            barContainer.style.borderRadius = "4px";
+
+            let barFill = document.createElement('div');
+            barFill.style.height = "100%";
+            barFill.style.width = "0%";
+            barFill.style.background = "#007cba";
+            barFill.style.borderRadius = "4px";
+            barFill.style.transition = "width 0.25s ease";
+
+            barContainer.appendChild(barFill);
+            statusEl.parentNode.insertBefore(barContainer, statusEl.nextSibling);
+
+            function setProgress(percent) {
+                barFill.style.width = percent + "%";
+            }
+
+            // --- LOG HELPER ---
+            function log(msg, isError=false) {
+                const p = document.createElement('div');
+                p.textContent = msg;
+                if (isError) p.style.color = '#a00';
+                logEl.appendChild(p);
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+
+            function setStatus(t) {
+                statusEl.textContent = t;
+            }
+
+            async function post(action, data) {
+                const form = new FormData();
+                form.append('action', action);
+                form.append('nonce',  nonce);
+
+                for (const k in data) form.append(k, data[k]);
+
+                const res  = await fetch(ajaxUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: form
+                });
+
+                const json = await res.json();
+
+                if (!json.success) {
+                    throw new Error(json.data && json.data.message ? json.data.message : "Unknown error");
+                }
+
+                return json.data;
+            }
+
+            async function importQueue(job_id, items) {
+                const total = items.length;
+
+                for (let i = 0; i < total; i++) {
+                    const it = items[i];
+
+                    const pct = Math.round(((i) / total) * 100);
+                    setProgress(pct);
+
+                    setStatus(`Importing ${i+1} of ${total}: ${it.name}`);
+
+                    try {
+                        await post('hcn_import_single', {
+                            job_id: job_id,
+                            index:  i
+                        });
+                        log(`✔ Imported: ${it.name}`);
+                    } catch (e) {
+                        log(`✖ Failed: ${it.name} – ${e.message}`, true);
+                    }
+                }
+
+                // 100%
+                setProgress(100);
+            }
+
+            async function finish(job_id) {
+                try { await post('hcn_import_finish', { job_id }); }
+                catch(e){}
+
+                setStatus('Done.');
+            }
+
+            // --- BUTTON CLICK ---
+            startBtn.addEventListener('click', async function() {
+                startBtn.disabled = true;
+                logEl.innerHTML = "";
+                setProgress(0);
+                setStatus('Preparing queue...');
+
+                try {
+                    const start = await post('hcn_import_start', {});
+                    log(`Queue created for ${start.total} properties.`);
+
+                    await importQueue(start.job_id, start.items);
+                    await finish(start.job_id);
+                }
+                catch(e){
+                    log("Start failed: " + e.message, true);
+                    setStatus('Failed.');
+                }
+                finally {
+                    startBtn.disabled = false;
+                }
+            });
+
+        })();
+            </script>
+
+            <hr>
+
+            <!-- OLD LOG VIEWER -->
             <?php $this->render_log(); ?>
         </div>
         <?php
@@ -163,4 +310,5 @@ class HavenConnect_Admin {
         echo esc_html($log);
         echo '</pre>';
     }
-}
+}
+

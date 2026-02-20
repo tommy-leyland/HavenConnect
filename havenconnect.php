@@ -36,6 +36,8 @@ hcn_require('class-property-importer.php');
 hcn_require('class-admin-metabox.php');
 hcn_require('class-admin.php');
 hcn_require('admin-save-hooks.php');
+hcn_require('class-import-ajax.php');
+/* hcn_require('class-import-cron.php'); */
 
 /**
  * Create availability table on activation
@@ -59,19 +61,24 @@ add_action('admin_init', function () {
     }
 });
 
-/**
- * BOOTSTRAP: run on core 'init' (NOT 'acf/init')
- * This ensures the plugin works regardless of whether ACF is active.
- */
-add_action('init', function () {
 
-    // --- Core singletons
-    $logger = new HavenConnect_Logger('hcn_log');
+/**
+ * BOOTSTRAP
+ * Instantiate taxonomy handler BEFORE init, so its add_action('init', ...) hooks bind
+ * in time for the current request. Then complete the rest on init.
+ */
+
+// --- Core singletons that must exist early
+$logger = new HavenConnect_Logger('hcn_log');
+$tax    = new HavenConnect_Taxonomy_Handler($logger); // <-- moved OUT of the init closure
+
+add_action('init', function () use ($logger, $tax) {
+
+    // --- Other singletons that can be created at init
     $api    = new HavenConnect_Api_Client($logger);
-    $tax    = new HavenConnect_Taxonomy_Handler($logger);
     $photos = new HavenConnect_Photo_Sync($logger);
 
-    // Availability importer (won't work with API key for calendars until OAuth is provided; safe to construct)
+    // Availability importer (OAuth still pending, safe to construct)
     $availability = new HavenConnect_Availability_Importer($api, $logger);
 
     // Property importer & Admin
@@ -88,16 +95,13 @@ add_action('init', function () {
         'admin'        => $admin,
     ];
 
-    /**
-     * Ensure the CPT supports the classic "Custom Fields" box.
-     * If your register-post-types.php already includes 'custom-fields' in 'supports',
-     * this is harmless; otherwise it adds it here.
-     */
+    // Ensure the CPT supports classic custom fields
     $cpt = 'hcn_property';
     if (post_type_exists($cpt)) {
         add_post_type_support($cpt, 'custom-fields');
     }
-});
+}, 10);
+
 
 /**
  * Always show native WP Custom Fields box if ACF is active (ACF hides it by default).

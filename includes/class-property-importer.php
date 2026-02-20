@@ -79,6 +79,47 @@ class HavenConnect_Property_Importer {
     }
 
     /**
+    * Imports ONE property given the 'Featured list' payload shape.
+    * Reuses the existing steps: upsert, tags, photos, meta, availability.
+    */
+    public function import_property_from_featured(string $apiKey, array $p)
+    {
+        $uid = $p['uid'] ?? ($p['UID'] ?? null);
+        if (!$uid) {
+            $this->logger->log("Skipped property with no UID (single import).");
+            return 0;
+        }
+
+        // Upsert post
+        $post_id = $this->upsert_post($uid, $p);
+
+        // Tags → taxonomies
+        $tags_raw = $this->api->get_property_tags($apiKey, $uid);
+        $tags     = $this->normalize_tags($tags_raw);
+        $this->tax->apply_taxonomies($post_id, $tags);
+
+        // Photos
+        $photo_payload = $this->api->get_property_photos($apiKey, $uid);
+        $this->photos->sync_from_payload($post_id, $photo_payload);
+        delete_post_thumbnail($post_id);
+
+        // Meta (lock-aware)
+        $this->update_meta($post_id, $p);
+
+        // Availability (OAuth later; safe to call; it no-ops if no data)
+        if (isset($GLOBALS['havenconnect']['availability'])) {
+            try {
+                $GLOBALS['havenconnect']['availability']->sync_property_calendar($apiKey, $uid);
+                $this->logger->log("Availability: imported calendar for $uid");
+            } catch (Throwable $e) {
+                $this->logger->log("Availability ERROR for $uid: " . $e->getMessage());
+            }
+        }
+
+        return (int)$post_id;
+    }
+
+    /**
      * Create or update a post representing a PMS property.
      */
     private function upsert_post(string $uid, array $data): int {

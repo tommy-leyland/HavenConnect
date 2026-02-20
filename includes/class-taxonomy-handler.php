@@ -5,69 +5,98 @@ if (!defined('ABSPATH')) exit;
 /**
  * HavenConnect_Taxonomy_Handler
  *
- * Maps Hostfully tag prefixes:
+ * Registers and assigns:
  *   [l] → property_loc (Location)
  *   [g] → property_group (Group)
- *
- * Ensures terms exist, assigns them to the property post.
  */
 class HavenConnect_Taxonomy_Handler {
 
     private $logger;
 
-    public function __construct($logger) {
+    public function __construct($logger = null) {
         $this->logger = $logger;
 
-        // Ensure taxonomies exist
-        add_action('init', [$this, 'register_taxonomies']);
+        // MUST run early so admin menus/meta boxes appear correctly
+        add_action('init', [$this, 'register_taxonomies'], 0);
     }
 
     /**
-     * Registers taxonomies if they do not already exist.
+     * Registers both taxonomies for CPT hcn_property.
      */
     public function register_taxonomies() {
 
-        // property_loc (Location)
-        if (!taxonomy_exists('property_loc')) {
-            register_taxonomy(
-                'property_loc',
-                'hcn_property',
-                [
-                    'label'        => 'Property Locations',
-                    'public'       => true,
-                    'hierarchical' => false,
-                    'show_ui'      => true,
-                    'show_in_rest' => true,
-                    'rewrite'      => [ 'slug' => 'property-location' ],
-                ]
-            );
-        }
+        $post_type = 'hcn_property';
 
-        // property_group
-        if (!taxonomy_exists('property_group')) {
-            register_taxonomy(
-                'property_group',
-                'hcn_property',
-                [
-                    'label'        => 'Property Groups',
-                    'public'       => true,
-                    'hierarchical' => false,
-                    'show_ui'      => true,
-                    'show_in_rest' => true,
-                    'rewrite'      => [ 'slug' => 'property-group' ],
-                ]
-            );
+        // Property Features (Amenity List)
+        register_taxonomy(
+            'hcn_feature',
+            ['hcn_property'],
+            [
+                'labels' => [
+                    'name' => __('Features'),
+                    'singular_name' => __('Feature'),
+                ],
+                'public' => true,
+                'hierarchical' => false,
+                'show_ui' => true,
+                'show_admin_column' => true,
+                'show_in_rest' => true,
+                'rewrite' => ['slug' => 'feature'],
+            ]
+        );
+
+        // LOCATION TAXONOMY
+        register_taxonomy(
+            'property_loc',
+            [$post_type],
+            [
+                'labels' => [
+                    'name'          => __('Property Locations', 'havenconnect'),
+                    'singular_name' => __('Property Location', 'havenconnect'),
+                    'menu_name'     => __('Locations', 'havenconnect'),
+                ],
+                'public'            => true,
+                'hierarchical'      => false,     // keep as you had it (non-hierarchical)
+                'show_ui'           => true,      // REQUIRED for admin UI
+                'show_admin_column' => true,      // show column in table
+                'show_in_rest'      => true,      // REQUIRED for Gutenberg
+                'rewrite'           => ['slug' => 'property-location'],
+            ]
+        );
+
+        // GROUP TAXONOMY
+        register_taxonomy(
+            'property_group',
+            [$post_type],
+            [
+                'labels' => [
+                    'name'          => __('Property Groups', 'havenconnect'),
+                    'singular_name' => __('Property Group', 'havenconnect'),
+                    'menu_name'     => __('Groups', 'havenconnect'),
+                ],
+                'public'            => true,
+                'hierarchical'      => false,     // non-hierarchical = tag-like
+                'show_ui'           => true,
+                'show_admin_column' => true,
+                'show_in_rest'      => true,
+                'rewrite'           => ['slug' => 'property-group'],
+            ]
+        );
+
+        if ($this->logger) {
+            $this->logger->log("Taxonomies registered: property_loc, property_group.");
         }
     }
 
     /**
-     * Processes raw tags from Hostfully and assigns taxonomy terms.
-     * @return void
+     * Assign terms generated from Hostfully tags.
      */
     public function apply_taxonomies($post_id, array $tags) {
 
         if (empty($tags)) {
-            $this->logger->log("No tags to process for post $post_id.");
+            if ($this->logger) {
+                $this->logger->log("No tags to process for post $post_id.");
+            }
             return;
         }
 
@@ -75,37 +104,36 @@ class HavenConnect_Taxonomy_Handler {
         $grp_terms = [];
 
         foreach ($tags as $tag) {
-            $t = trim($tag);
 
-            // Normalize "[l] Something" => "[l]Something"
+            $t = trim($tag);
             $t = preg_replace('/^\[(l|g)\]\s+/i', '[$1]', $t);
 
-            // Location
             if (stripos($t, '[l]') === 0) {
                 $term = trim(substr($t, 3));
                 if ($term !== '') $loc_terms[] = $term;
             }
 
-            // Group
             if (stripos($t, '[g]') === 0) {
                 $term = trim(substr($t, 3));
                 if ($term !== '') $grp_terms[] = $term;
             }
         }
 
-        // Remove duplicates
         $loc_terms = array_unique($loc_terms);
         $grp_terms = array_unique($grp_terms);
 
-        // Assign taxonomy terms
         if ($loc_terms) {
             wp_set_object_terms($post_id, $loc_terms, 'property_loc', false);
-            $this->logger->log("Assigned property_loc → " . implode(', ', $loc_terms));
+            if ($this->logger) {
+                $this->logger->log("Assigned property_loc → " . implode(', ', $loc_terms));
+            }
         }
 
         if ($grp_terms) {
             wp_set_object_terms($post_id, $grp_terms, 'property_group', false);
-            $this->logger->log("Assigned property_group → " . implode(', ', $grp_terms));
+            if ($this->logger) {
+                $this->logger->log("Assigned property_group → " . implode(', ', $grp_terms));
+            }
         }
     }
 }

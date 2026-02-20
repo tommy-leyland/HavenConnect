@@ -2,8 +2,8 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Register HavenConnect post type + taxonomies
- * Slugs are namespaced to avoid conflicts.
+ * Register HavenConnect post type ONLY.
+ * (Taxonomies now live exclusively in class-taxonomy-handler.php)
  */
 
 add_action('init', function() {
@@ -11,7 +11,6 @@ add_action('init', function() {
     // ---------- CUSTOM POST TYPE ----------
     $slug = 'hcn_property';
 
-    // Only register if no other plugin has claimed it
     if (!post_type_exists($slug)) {
 
         register_post_type($slug, [
@@ -28,44 +27,8 @@ add_action('init', function() {
         ]);
     }
 
-    // ---------- TAXONOMIES ----------
-    // LOCATION taxonomy
-    if (!taxonomy_exists('hcn_property_location')) {
-        register_taxonomy(
-            'hcn_property_location',
-            $slug,
-            [
-                'label'        => 'Locations',
-                'hierarchical' => true,
-                'show_in_rest' => true,
-            ]
-        );
-    }
-
-    // GROUP taxonomy (tags-style)
-    if (!taxonomy_exists('hcn_property_group')) {
-        register_taxonomy(
-            'hcn_property_group',
-            $slug,
-            [
-                'label'        => 'Groups',
-                'hierarchical' => false,
-                'show_in_rest' => true,
-            ]
-        );
-    }
-
-    // FEATURES taxonomy (optional)
-    if (!taxonomy_exists('hcn_property_feature')) {
-        register_taxonomy(
-            'hcn_property_feature',
-            $slug,
-            [
-                'label'        => 'Features',
-                'hierarchical' => false,
-                'show_in_rest' => true,
-            ]
-        );
-    }
-
+    // IMPORTANT:
+    // No taxonomy registration here anymore.
+    // Taxonomies are now registered inside class-taxonomy-handler.php 
+    // at init priority 0 so menus and meta boxes work correctly.
 });

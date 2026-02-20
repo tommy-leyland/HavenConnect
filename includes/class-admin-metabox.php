@@ -167,7 +167,7 @@ function hcn_render_property_meta_box($post) {
             <table class="hcn-meta-table">
                 <tr><td><strong>Address 1:</strong></td><td><?= esc_html($fields['address_line1']); ?></td></tr>
                 <tr><td><strong>Address 2:</strong></td><td><?= esc_html($fields['address_line2']); ?></td></tr>
-                <tr><td><strong>State:</strong></td><td><?= esc_html($fields['city']); ?></td></tr>
+                <tr><td><strong>State:</strong></td><td><?= esc_html($fields['state']); ?></td></tr>
                 <tr><td><strong>City:</strong></td><td><?= esc_html($fields['city']); ?></td></tr>
                 <tr><td><strong>Postcode:</strong></td><td><?= esc_html($fields['postcode']); ?></td></tr>
                 <tr><td><strong>Latitude:</strong></td><td><?= esc_html($fields['latitude']); ?></td></tr>
