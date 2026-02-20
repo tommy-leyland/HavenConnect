@@ -41,11 +41,9 @@ function hcn_ajax_job_key(string $job_id): string {
  * REGISTER AJAX ACTIONS — only AFTER init
  */
 add_action('init', function () {
-
-    add_action('wp_ajax_hcn_import_start',  'hcn_import_start_handler');
+    add_action('wp_ajax_hcn_import_start', 'hcn_import_start_handler');
     add_action('wp_ajax_hcn_import_single', 'hcn_import_single_handler');
     add_action('wp_ajax_hcn_import_finish', 'hcn_import_finish_handler');
-
 });
 
 
