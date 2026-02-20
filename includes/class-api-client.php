@@ -4,178 +4,170 @@ if (!defined('ABSPATH')) exit;
 /**
  * HavenConnect_Api_Client
  *
- * Fetches:
- *  - Featured properties
- *  - Tags
- *  - Photos
- *  - Calendar (availability + daily pricing/rules)
- *
- * Uses JSON ONLY (forces "Accept: application/json" and decodes associative arrays).
+ * Minimal, clean API client used by the importer & admin.
+ * Handles Featured Properties, Tags, Photos, Property Details, Amenities.
  */
 class HavenConnect_Api_Client {
 
     private $logger;
 
-    public function __construct($logger) {
+    public function __construct($logger = null) {
         $this->logger = $logger;
     }
 
     /**
-     * Universal HTTP GET with production + sandbox failover.
-     * $endpoints: [ 'https://.../path' => [ 'Header-Name' => 'value' ], ... ]
-     * $params:    key/value pairs to append to the URL as a query string.
+     * Core HTTP wrapper.
+     * Accepts array of endpoints (primary + fallback).
+     * $params appended as query string.
      */
-    private function request(array $endpoints, array $params = [], int $timeout = 30): ?array {
+    public function request(array $endpoints, array $params = []) {
 
-        foreach ($endpoints as $base => $headers) {
+        foreach ($endpoints as $url => $headers) {
 
-            // Build URL with params
-            $url  = add_query_arg($params, $base);
+            $qs = '';
+            if (!empty($params)) {
+                $qs = '?' . http_build_query($params);
+            }
 
-            // Force JSON
+            $final = $url . $qs;
+
             $args = [
-                'headers' => array_merge((array)$headers, [
-                    'Accept' => 'application/json',
-                ]),
-                'timeout' => $timeout,
+                'timeout' => 20,
+                'headers' => $headers,
             ];
 
-            $res  = wp_remote_get($url, $args);
+            $res = wp_remote_get($final, $args);
 
             if (is_wp_error($res)) {
-                $this->logger->log("HTTP error on $base: " . $res->get_error_message());
-                continue;
+                continue; // try next endpoint
             }
 
             $code = wp_remote_retrieve_response_code($res);
-            $body = wp_remote_retrieve_body($res);
-
-            if ($code === 401) {
-                $this->logger->log("401 Unauthorized from $base – trying fallback.");
-                continue;
-            }
-
             if ($code < 200 || $code >= 300) {
-                $this->logger->log("Non-2xx ($code): $url");
                 continue;
             }
 
-            $decoded = json_decode($body, true);
+            $body = wp_remote_retrieve_body($res);
+            if (!$body) return null;
 
-            // Trace (truncated)
-            $this->logger->log("DEBUG decoded JSON: " . substr(print_r($decoded, true), 0, 1000));
-
-            return is_array($decoded) ? $decoded : null;
+            $parsed = json_decode($body, true);
+            return $parsed;
         }
 
         return null;
     }
 
     /**
-     * Fetch Featured properties (Hostfully v3.2).
-     * We filter by agencyUid and tag=Featured; limit to 10 for the importer.
+     * Featured property list for an Agency UID.
      */
     public function get_featured_list(string $apiKey, string $agencyUid): array {
 
         $endpoints = [
-            "https://platform.hostfully.com/api/v3.2/properties" => [
-                'X-HOSTFULLY-APIKEY' => $apiKey,
+            "https://platform.hostfully.com/api/v3/agencies/{$agencyUid}/featured-properties" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
             ],
-            "https://sandbox.hostfully.com/api/v3.2/properties" => [
-                'X-HOSTFULLY-APIKEY' => $apiKey,
+            "https://sandbox.hostfully.com/api/v3/agencies/{$agencyUid}/featured-properties" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
             ],
         ];
 
-        $params = [
-            'agencyUid' => $agencyUid,
-            'tags'      => 'Featured',
-            '_limit'    => 10,
-        ];
+        $parsed = $this->request($endpoints);
 
-        $parsed = $this->request($endpoints, $params, 45);
-
-        if (!$parsed) return [];
-
-        if (isset($parsed['properties']) && is_array($parsed['properties'])) {
-            return $parsed['properties'];
+        if (!is_array($parsed) || empty($parsed['featuredProperties'])) {
+            return [];
         }
 
-        return [];
+        return $parsed['featuredProperties'];
     }
 
     /**
-     * Fetch tags for a property (Hostfully v3.2 /tags endpoint with filters).
+     * Get tags for a property.
      */
     public function get_property_tags(string $apiKey, string $propertyUid): array {
 
         $endpoints = [
-            "https://platform.hostfully.com/api/v3.2/tags" => [
-                'X-HOSTFULLY-APIKEY' => $apiKey,
+            "https://platform.hostfully.com/api/v3/properties/{$propertyUid}/tags" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
             ],
-            "https://sandbox.hostfully.com/api/v3.2/tags" => [
-                'X-HOSTFULLY-APIKEY' => $apiKey,
+            "https://sandbox.hostfully.com/api/v3/properties/{$propertyUid}/tags" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
             ],
         ];
 
-        $params = [
-            'objectUid'  => $propertyUid,
-            'objectType' => 'PROPERTY',
-        ];
+        $parsed = $this->request($endpoints);
 
-        $parsed = $this->request($endpoints, $params);
-
-        if (!$parsed) return [];
-
-        if (isset($parsed['tagsForObject']['tags']) && is_array($parsed['tagsForObject']['tags'])) {
-            return $parsed['tagsForObject']['tags'];
+        if (!is_array($parsed) || empty($parsed['tags'])) {
+            return [];
         }
 
-        return [];
+        return $parsed['tags'];
     }
 
     /**
-     * Fetch photos for a property (Hostfully v3.2).
-     * Returns array of photo items; each contains originalImageUrl / largeScaleImageUrl / etc.
+     * Fetch property photos
      */
     public function get_property_photos(string $apiKey, string $propertyUid): array {
 
         $endpoints = [
-            "https://platform.hostfully.com/api/v3.2/photos" => [
-                'X-HOSTFULLY-APIKEY' => $apiKey,
+            "https://platform.hostfully.com/api/v3/properties/{$propertyUid}/photos" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
             ],
-            "https://sandbox.hostfully.com/api/v3.2/photos"  => [
-                'X-HOSTFULLY-APIKEY' => $apiKey,
+            "https://sandbox.hostfully.com/api/v3/properties/{$propertyUid}/photos" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
             ],
         ];
 
-        $params = [
-            'propertyUid' => $propertyUid,
-        ];
+        $parsed = $this->request($endpoints);
 
-        $parsed = $this->request($endpoints, $params);
-
-        $this->logger->log("DEBUG photos raw: " . substr(print_r($parsed, true), 0, 1000));
-
-        if (!$parsed) return [];
-
-        if (isset($parsed['photos']) && is_array($parsed['photos'])) {
-            return $parsed['photos'];
+        if (!is_array($parsed) || empty($parsed['photos'])) {
+            return [];
         }
 
-        return [];
+        return $parsed['photos'];
     }
 
-    /* PROPERTY DETAILS */
+    /**
+     * Property details (used occasionally)
+     */
     public function get_property_details(string $apiKey, string $propertyUid) {
+
         $endpoints = [
             "https://platform.hostfully.com/api/v3/properties/{$propertyUid}" => [
                 "X-HOSTFULLY-APIKEY" => $apiKey
-            ]
+            ],
+            "https://sandbox.hostfully.com/api/v3/properties/{$propertyUid}" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
+            ],
         ];
-        return $this->request($endpoints);
+
+        $parsed = $this->request($endpoints);
+        return $parsed;
     }
 
+    /**
+     * Amenities v3.2 — per-property
+     *
+     * https://platform.hostfully.com/api/v3.2/amenities?propertyUid={UID}
+     */
+    public function get_property_amenities(string $apiKey, string $propertyUid): array {
 
-	
+        $endpoints = [
+            "https://platform.hostfully.com/api/v3.2/amenities" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
+            ],
+            "https://sandbox.hostfully.com/api/v3.2/amenities" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
+            ],
+        ];
 
+        $params = ['propertyUid' => $propertyUid];
+
+        $parsed = $this->request($endpoints, $params);
+
+        if (!is_array($parsed) || empty($parsed['amenities'])) {
+            return [];
+        }
+
+        return $parsed['amenities'];
+    }
 }

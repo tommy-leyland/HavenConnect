@@ -65,8 +65,42 @@ class HavenConnect_Taxonomy_Handler {
             ]
         );
 
+		// Property Features (Amenity List)
+
+        register_taxonomy(
+
+            'hcn_feature',
+
+            ['hcn_property'],
+
+            [
+
+                'labels' => [
+
+                    'name' => __('Features'),
+
+                    'singular_name' => __('Feature'),
+
+                ],
+
+                'public' => true,
+
+                'hierarchical' => false,
+
+                'show_ui' => true,
+
+                'show_admin_column' => true,
+
+                'show_in_rest' => true,
+
+                'rewrite' => ['slug' => 'feature'],
+
+            ]
+
+        );
+
         if ($this->logger) {
-            $this->logger->log("Taxonomies registered: property_loc, property_group.");
+            $this->logger->log("Taxonomies registered: property_loc, property_group, Features.");
         }
     }
 

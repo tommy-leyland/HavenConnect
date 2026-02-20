@@ -1,16 +1,16 @@
 <?php
-
 if (!defined('ABSPATH')) exit;
 
 /**
  * HavenConnect_Property_Importer
  *
- * Orchestrates:
- *  - Featured property list fetch
- *  - Tag fetch + taxonomy assignment
- *  - Photo sync (external URLs only)
- *  - Post meta updates (LOCK-AWARE)
- *  - Availability import (Hostfully → wp_hcn_availability table)
+ * Imports:
+ *  - Featured list
+ *  - Tags
+ *  - Photos
+ *  - Meta
+ *  - Amenities (NEW)
+ *  - Availability (OAuth pending)
  */
 class HavenConnect_Property_Importer {
 
@@ -27,73 +27,53 @@ class HavenConnect_Property_Importer {
     }
 
     /**
-     * Admin UI triggers this method.
+     * MAIN IMPORT LOOP (Used by old button & Cron)
      */
     public function run_import($apiKey, $agencyUid) {
 
         $this->logger->clear();
-        $this->logger->log("HavenConnect Import Started");
+        $this->logger->log("Import started…");
 
-        // 1. Fetch Featured Properties
         $props = $this->api->get_featured_list($apiKey, $agencyUid);
         $count = count($props);
         $this->logger->log("Found $count Featured properties.");
 
         foreach ($props as $p) {
-
             $uid = $p['uid'] ?? ($p['UID'] ?? null);
             if (!$uid) {
-                $this->logger->log("Skipped property with no UID.");
+                $this->logger->log("Skipped property without UID.");
                 continue;
             }
 
-            // 2. Upsert WP Post
-            $post_id = $this->upsert_post($uid, $p);
-
-            // 3. Tags
-            $tags_raw = $this->api->get_property_tags($apiKey, $uid);
-            $tags     = $this->normalize_tags($tags_raw);
-            $this->tax->apply_taxonomies($post_id, $tags);
-
-            // 4. Photos
-            $photo_payload = $this->api->get_property_photos($apiKey, $uid);
-            $this->photos->sync_from_payload($post_id, $photo_payload);
-            delete_post_thumbnail($post_id);
-
-            // 5. Meta (LOCK-AWARE)
-            $this->update_meta($post_id, $p);
-
-            // 6. Availability + Pricing Import (passing $apiKey)
-            if (isset($GLOBALS['havenconnect']['availability'])) {
-                try {
-                    $GLOBALS['havenconnect']['availability']->sync_property_calendar($apiKey, $uid);
-                    $this->logger->log("Availability: imported calendar for $uid");
-                } catch (Throwable $e) {
-                    $this->logger->log("Availability ERROR for $uid: " . $e->getMessage());
-                }
-            }
+            $this->import_single_property($apiKey, $agencyUid, $uid, $p);
         }
 
-        $this->logger->log("HavenConnect Import Completed");
+        $this->logger->log("Import complete.");
         return true;
     }
 
     /**
-    * Imports ONE property given the 'Featured list' payload shape.
-    * Reuses the existing steps: upsert, tags, photos, meta, availability.
-    */
-    public function import_property_from_featured(string $apiKey, array $p)
-    {
+     * AJAX importer calls this — but it is also shared by run_import()
+     */
+    public function import_property_from_featured(string $apiKey, array $p) {
         $uid = $p['uid'] ?? ($p['UID'] ?? null);
         if (!$uid) {
-            $this->logger->log("Skipped property with no UID (single import).");
+            $this->logger->log("Single import: missing UID.");
             return 0;
         }
 
-        // Upsert post
-        $post_id = $this->upsert_post($uid, $p);
+        return $this->import_single_property($apiKey, null, $uid, $p);
+    }
 
-        // Tags → taxonomies
+    /**
+     * Shared per-property import logic
+     */
+    private function import_single_property(string $apiKey, ?string $agencyUid, string $uid, array $data) {
+
+        // Upsert post
+        $post_id = $this->upsert_post($uid, $data);
+
+        // Tags
         $tags_raw = $this->api->get_property_tags($apiKey, $uid);
         $tags     = $this->normalize_tags($tags_raw);
         $this->tax->apply_taxonomies($post_id, $tags);
@@ -103,25 +83,76 @@ class HavenConnect_Property_Importer {
         $this->photos->sync_from_payload($post_id, $photo_payload);
         delete_post_thumbnail($post_id);
 
-        // Meta (lock-aware)
-        $this->update_meta($post_id, $p);
+        // Meta
+        $this->update_meta($post_id, $data);
 
-        // Availability (OAuth later; safe to call; it no-ops if no data)
+        // Amenities → Features taxonomy
+        $this->sync_property_amenities($apiKey, $uid, $post_id);
+
+        // Availability (OAuth pending)
         if (isset($GLOBALS['havenconnect']['availability'])) {
             try {
-                $GLOBALS['havenconnect']['availability']->sync_property_calendar($apiKey, $uid);
-                $this->logger->log("Availability: imported calendar for $uid");
-            } catch (Throwable $e) {
-                $this->logger->log("Availability ERROR for $uid: " . $e->getMessage());
+                if ($agencyUid) {
+                    $GLOBALS['havenconnect']['availability']->sync_property_calendar($apiKey, $uid);
+                }
+            } catch (\Throwable $e) {
+                $this->logger->log("Availability error for $uid: " . $e->getMessage());
             }
         }
 
-        return (int)$post_id;
+        return $post_id;
     }
 
-    /**
-     * Create or update a post representing a PMS property.
-     */
+    /** -----------------------------------------------------------
+     *  AMENITIES → Features taxonomy
+     * ----------------------------------------------------------- */
+
+    private function amenity_display_name(string $code): string {
+        // HAS_STOVE → Stove
+        // IS_LAKEFRONT → Lakefront
+        $clean = preg_replace('/^(HAS_|IS_)/', '', strtoupper($code));
+        $clean = str_replace('_', ' ', $clean);
+        return ucwords(strtolower($clean));
+    }
+
+    private function sync_property_amenities(string $apiKey, string $propertyUid, int $post_id): void {
+
+        $rows = $this->api->get_property_amenities($apiKey, $propertyUid);
+
+        if (empty($rows)) {
+            $this->logger->log("Amenities: none for $propertyUid");
+            return;
+        }
+
+        $terms = [];
+
+        foreach ($rows as $row) {
+            $code = isset($row['amenity']) ? trim($row['amenity']) : '';
+            if ($code === '') continue;
+
+            $label = $this->amenity_display_name($code);
+            if ($label === '') continue;
+
+            if (!term_exists($label, 'hcn_feature')) {
+                $res = wp_insert_term($label, 'hcn_feature');
+                if (!is_wp_error($res)) {
+                    $this->logger->log("Amenity term added: $label");
+                }
+            }
+
+            $terms[] = $label;
+        }
+
+        if (!empty($terms)) {
+            wp_set_object_terms($post_id, $terms, 'hcn_feature', false);
+            $this->logger->log("Amenities assigned to post {$post_id}: " . implode(', ', $terms));
+        }
+    }
+
+    /** -----------------------------------------------------------
+     * Existing methods (upsert_post, normalize_tags, update_meta)
+     * ----------------------------------------------------------- */
+
     private function upsert_post(string $uid, array $data): int {
 
         $title = sanitize_text_field($data['name'] ?? ($data['Name'] ?? 'Untitled'));
@@ -147,33 +178,22 @@ class HavenConnect_Property_Importer {
         $new_id = $post_id ? wp_update_post($postarr, true) : wp_insert_post($postarr, true);
 
         if (is_wp_error($new_id)) {
-            $this->logger->log("WP Error creating/updating post for UID $uid: ".$new_id->get_error_message());
+            $this->logger->log("Post error for UID $uid: ".$new_id->get_error_message());
             return 0;
         }
 
         $post_id = $new_id;
-
-        // UID is system meta; never locked
         update_post_meta($post_id, '_havenconnect_uid', $uid);
 
-        $this->logger->log("Upserted: $title (post_id={$post_id})");
         return $post_id;
     }
 
-    /**
-     * Normalize raw tags from Hostfully.
-     */
     private function normalize_tags($raw): array {
-
         if (empty($raw)) return [];
-
         $flat = [];
 
         $walk = function($v) use (&$flat, &$walk) {
-            if (is_string($v)) {
-                $flat[] = trim($v);
-                return;
-            }
+            if (is_string($v)) { $flat[] = trim($v); return; }
             if (is_array($v)) {
                 if (isset($v['name']) && is_string($v['name'])) {
                     $flat[] = trim($v['name']);
@@ -182,56 +202,13 @@ class HavenConnect_Property_Importer {
                 foreach ($v as $vv) $walk($vv);
             }
         };
-
         $walk($raw);
-
-        // Remove spaces in "[g] Something"
-        $flat = array_map(function($t){
-            return preg_replace('/^\[(l|g)\]\s+/i', '[$1]', $t);
-        }, $flat);
 
         return array_values(array_unique(array_filter($flat)));
     }
 
-    /**
-     * LOCK-AWARE meta write helper.
-     * - If <key>_locked is set, we DO NOT overwrite or delete the field.
-     * - If $value is "empty" (null, empty string, empty array), we DELETE the meta (unless locked).
-     * - Otherwise, we UPDATE the meta value.
-     */
-    private function safe_update_meta(int $post_id, string $key, $value): void
-    {
-        $lock_key = "{$key}_locked";
-        $is_locked = (bool) get_post_meta($post_id, $lock_key, true);
+    private function update_meta(int $post_id, array $p): void {
 
-        if ($is_locked) {
-            // Skip any change when locked
-            $this->logger->log("LOCKED: Skipped '{$key}' for post {$post_id}");
-            return;
-        }
-
-        $is_empty = false;
-        if ($value === null) {
-            $is_empty = true;
-        } elseif (is_string($value) && trim($value) === '') {
-            $is_empty = true;
-        } elseif (is_array($value) && count($value) === 0) {
-            $is_empty = true;
-        }
-
-        if ($is_empty) {
-            delete_post_meta($post_id, $key);
-            return;
-        }
-
-        update_post_meta($post_id, $key, $value);
-    }
-
-    /**
-     * Native post meta mapping (LOCK-AWARE, no ACF, no attachments)
-     */
-    private function update_meta(int $post_id, array $p): void
-    {
         $addr  = (array)($p['address']      ?? []);
         $avail = (array)($p['availability'] ?? []);
         $area  = (array)($p['area']         ?? []);
@@ -244,12 +221,6 @@ class HavenConnect_Property_Importer {
             'bathrooms'     => $to_float($p['bathrooms'] ?? null),
             'beds'          => $to_int($p['beds'] ?? null),
             'sleeps'        => $to_int($avail['maxGuests'] ?? ($p['maxGuests'] ?? null)),
-
-            'check_in_from' => $to_int($avail['checkInTimeStart'] ?? null),
-            'check_in_to'   => $to_int($avail['checkInTimeEnd']   ?? null),
-            'min_stay'      => $to_int($avail['minimumStay']      ?? null),
-            'max_stay'      => $to_int($avail['maximumStay']      ?? null),
-
             'address_line1' => $addr['address']     ?? null,
             'address_line2' => $addr['address2']    ?? null,
             'city'          => $addr['city']        ?? null,
@@ -258,23 +229,21 @@ class HavenConnect_Property_Importer {
             'country_code'  => $addr['countryCode'] ?? null,
             'latitude'      => $to_float($addr['latitude']  ?? null),
             'longitude'     => $to_float($addr['longitude'] ?? null),
-
             'property_type' => $p['propertyType']   ?? null,
             'listing_type'  => $p['listingType']    ?? null,
             'room_type'     => $p['roomType']       ?? null,
-            'floor_count'   => $to_int($p['numberOfFloors'] ?? null),
-
             'area_size'     => $to_float($area['size']     ?? null),
             'area_unit'     => $area['unitType']           ?? null,
-
-            'license_number' => $p['rentalLicenseNumber']         ?? null,
+            'license_number' => $p['rentalLicenseNumber'] ?? null,
             'license_expiry' => $p['rentalLicenseExpirationDate'] ?? null,
         ];
 
         foreach ($map as $key => $value) {
-            $this->safe_update_meta($post_id, $key, $value);
+            if ($value !== null && $value !== '' && $value !== []) {
+                update_post_meta($post_id, $key, $value);
+            } else {
+                delete_post_meta($post_id, $key);
+            }
         }
-
-        $this->logger->log("Meta: updated (lock-aware) fields for post $post_id");
     }
 }
