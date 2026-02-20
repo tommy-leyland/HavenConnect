@@ -4,13 +4,22 @@ if (!defined('ABSPATH')) exit;
 /**
  * HavenConnect AJAX Importer
  *
- * - Creates a property import queue
- * - Imports ONE property per AJAX request
- * - Uses the real importer, real API client, real logger
- * - Supports fallback if Featured list is empty
- * - Ensures images + logging work properly
+ * IMPORTANT:
+ * This file is now wrapped in an init hook so that AJAX handlers
+ * are registered ONLY AFTER the plugin bootstrap has created:
+ *
+ *   $GLOBALS['havenconnect']['logger']
+ *   $GLOBALS['havenconnect']['api']
+ *   $GLOBALS['havenconnect']['importer']
+ *   $GLOBALS['havenconnect']['photos']
+ *   $GLOBALS['havenconnect']['tax']
+ *
+ * Without this, AJAX would run too early and break logs + images.
  */
 
+/**
+ * Get API + Agency UID from settings
+ */
 function hcn_ajax_get_settings(): array {
     $opts = get_option('havenconnect_settings', []);
     return [
@@ -27,18 +36,31 @@ function hcn_ajax_job_key(string $job_id): string {
     return 'hcn_job_' . $job_id;
 }
 
+
 /**
- * START IMPORT — Build queue
+ * REGISTER AJAX ACTIONS — only AFTER init
  */
-add_action('wp_ajax_hcn_import_start', function () {
+add_action('init', function () {
+
+    add_action('wp_ajax_hcn_import_start',  'hcn_import_start_handler');
+    add_action('wp_ajax_hcn_import_single', 'hcn_import_single_handler');
+    add_action('wp_ajax_hcn_import_finish', 'hcn_import_finish_handler');
+
+});
+
+
+
+/**
+ * START IMPORT — creates queue
+ */
+function hcn_import_start_handler() {
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => 'Unauthorized'], 403);
     }
-
     check_ajax_referer('hcn_import_nonce', 'nonce');
 
-    // ALWAYS use the real objects created in havenconnect.php
+    // USE REAL SINGLETONS
     $logger   = $GLOBALS['havenconnect']['logger'];
     $api      = $GLOBALS['havenconnect']['api'];
 
@@ -46,25 +68,25 @@ add_action('wp_ajax_hcn_import_start', function () {
     $apiKey    = $settings['apiKey'];
     $agencyUid = $settings['agencyUid'];
 
-    if (empty($apiKey) || empty($agencyUid)) {
+    if (!$apiKey || !$agencyUid) {
         wp_send_json_error(['message' => 'Missing API credentials.'], 400);
     }
 
-    // 1) Try Featured list (v3.2 correct)
-    $list     = $api->get_featured_list($apiKey, $agencyUid);
-    $source   = 'featured';
+    // 1) Try v3.2 Featured
+    $list   = $api->get_featured_list($apiKey, $agencyUid);
+    $source = 'featured';
 
-    // 2) Fallback to all properties if featured is empty
+    // 2) Fallback to full property list
     if (empty($list)) {
         $list   = $api->get_properties_by_agency($apiKey, $agencyUid);
         $source = 'all';
     }
 
     if (empty($list)) {
-        wp_send_json_error(['message' => 'No properties returned for agency.'], 404);
+        wp_send_json_error(['message' => 'No properties available for this agency.'], 404);
     }
 
-    // Build items
+    // Build queue
     $items = [];
     foreach ($list as $p) {
         $uid  = $p['uid'] ?? ($p['UID'] ?? null);
@@ -79,7 +101,7 @@ add_action('wp_ajax_hcn_import_start', function () {
     }
 
     if (empty($items)) {
-        wp_send_json_error(['message' => 'No valid properties found.'], 422);
+        wp_send_json_error(['message' => 'Properties returned but no UIDs found.'], 422);
     }
 
     $job_id = hcn_ajax_new_job_id();
@@ -100,19 +122,20 @@ add_action('wp_ajax_hcn_import_start', function () {
         'total'  => $queue['total'],
         'source' => $source,
         'items'  => array_map(fn($i) => ['uid'=>$i['uid'],'name'=>$i['name']], $items),
-        'message'=> 'Queue ready',
+        'message'=> 'Queue created successfully.'
     ]);
-});
+}
+
+
 
 /**
- * IMPORT SINGLE PROPERTY
+ * IMPORT 1 PROPERTY
  */
-add_action('wp_ajax_hcn_import_single', function () {
+function hcn_import_single_handler() {
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => 'Unauthorized'], 403);
     }
-
     check_ajax_referer('hcn_import_nonce', 'nonce');
 
     $job_id = sanitize_text_field($_POST['job_id'] ?? '');
@@ -126,13 +149,13 @@ add_action('wp_ajax_hcn_import_single', function () {
     $queue = get_transient($key);
 
     if (!$queue) {
-        wp_send_json_error(['message' => 'Job not found or expired.'], 410);
+        wp_send_json_error(['message' => 'Queue expired or missing.'], 410);
     }
     if (!isset($queue['items'][$index])) {
-        wp_send_json_error(['message' => 'Invalid queue index.'], 400);
+        wp_send_json_error(['message' => 'Invalid property index.'], 400);
     }
 
-    // Use the REAL importer + logger + api
+    // REAL SINGLETONS
     $logger   = $GLOBALS['havenconnect']['logger'];
     $api      = $GLOBALS['havenconnect']['api'];
     $importer = $GLOBALS['havenconnect']['importer'];
@@ -144,50 +167,56 @@ add_action('wp_ajax_hcn_import_single', function () {
         wp_send_json_error(['message' => 'Missing API key'], 400);
     }
 
-    $p   = $queue['items'][$index]['payload'];
-    $uid = $queue['items'][$index]['uid'];
-    $nm  = $queue['items'][$index]['name'];
+    $p     = $queue['items'][$index]['payload'];
+    $uid   = $queue['items'][$index]['uid'];
+    $name  = $queue['items'][$index]['name'];
 
     try {
-        // Import using the real importer singleton
+
+        // Import using the REAL importer singleton
         $post_id = $importer->import_property_from_featured($apiKey, $p);
 
+        // Update queue
         $queue['done'] = max($queue['done'], $index + 1);
         set_transient($key, $queue, 2 * HOUR_IN_SECONDS);
 
-        $logger->save(); // ← CRITICAL: flush writes so UI can see logs and photos errors surface
+        // Flush logs so UI can see them
+        $logger->save();
 
         wp_send_json_success([
             'index'    => $index,
             'uid'      => $uid,
-            'name'     => $nm,
+            'name'     => $name,
             'post_id'  => $post_id,
             'done'     => $queue['done'],
             'total'    => $queue['total'],
-            'message'  => "Imported {$nm}"
+            'message'  => "Imported {$name}"
         ]);
 
     } catch (Throwable $e) {
+
         $logger->log("ERROR importing {$uid}: " . $e->getMessage());
+        $logger->save();
+
         wp_send_json_error([
             'index'   => $index,
             'uid'     => $uid,
-            'name'    => $nm,
+            'name'    => $name,
             'message' => $e->getMessage(),
         ], 500);
     }
-});
+}
+
 
 
 /**
- * FINISH — clear job
+ * FINISH IMPORT — cleanup
  */
-add_action('wp_ajax_hcn_import_finish', function () {
+function hcn_import_finish_handler() {
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => 'Unauthorized'], 403);
     }
-
     check_ajax_referer('hcn_import_nonce', 'nonce');
 
     $job_id = sanitize_text_field($_POST['job_id'] ?? '');
@@ -195,7 +224,12 @@ add_action('wp_ajax_hcn_import_finish', function () {
         wp_send_json_error(['message' => 'Missing job_id'], 400);
     }
 
-    delete_transient(hcn_ajax_job_key($job_id));
+    $key = hcn_ajax_job_key($job_id);
+    delete_transient($key);
+
+    // IMPORTANT: flush logs on finish
+    $logger = $GLOBALS['havenconnect']['logger'];
     $logger->save();
-    wp_send_json_success(['message' => 'Import complete']);
-});
+
+    wp_send_json_success(['message' => 'Import completed']);
+}
