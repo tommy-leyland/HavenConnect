@@ -49,19 +49,24 @@ add_action('wp_ajax_hcn_import_start', function () {
 
     check_ajax_referer('hcn_import_nonce', 'nonce');
 
-    $settings  = hcn_importer_get_settings();
-    $apiKey    = $settings['apiKey'];
-    $agencyUid = $settings['agencyUid'];
+    $opts = get_option('havenconnect_settings', []);
+	$apiKey = trim($opts['api_key'] ?? '');
+	$agencyUid = trim($opts['agency_uid'] ?? '');
 
     if (empty($apiKey) || empty($agencyUid)) {
         wp_send_json_error(['message' => 'Missing API credentials.'], 400);
     }
 
     // Build the queue using API client directly (not through importer)
-    $logger = $GLOBALS['havenconnect']['logger'] ?? null;
-    $api    = new HavenConnect_Api_Client($logger);
+    $logger   = $GLOBALS['havenconnect']['logger'];
+	$api      = $GLOBALS['havenconnect']['api'];
+	$importer = $GLOBALS['havenconnect']['importer'];
 
     $list = $api->get_featured_list($apiKey, $agencyUid); // returns array of property objects
+
+	if (empty($list)) {
+		$list = $api->get_properties_by_agency($apiKey, $agencyUid);
+	}
 
     if (!is_array($list) || empty($list)) {
         wp_send_json_error(['message' => 'No properties found for Featured list.']);

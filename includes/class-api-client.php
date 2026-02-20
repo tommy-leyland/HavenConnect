@@ -62,23 +62,23 @@ class HavenConnect_Api_Client {
      */
     public function get_featured_list(string $apiKey, string $agencyUid): array {
 
-        $endpoints = [
-            "https://platform.hostfully.com/api/v3/agencies/{$agencyUid}/featured-properties" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-            "https://sandbox.hostfully.com/api/v3/agencies/{$agencyUid}/featured-properties" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-        ];
+		$endpoints = [
+			"https://platform.hostfully.com/api/v3.2/agencies/{$agencyUid}/featured-properties" => [
+				"X-HOSTFULLY-APIKEY" => $apiKey
+			],
+			"https://sandbox.hostfully.com/api/v3.2/agencies/{$agencyUid}/featured-properties" => [
+				"X-HOSTFULLY-APIKEY" => $apiKey
+			],
+		];
 
-        $parsed = $this->request($endpoints);
+		$parsed = $this->request($endpoints);
 
-        if (!is_array($parsed) || empty($parsed['featuredProperties'])) {
-            return [];
-        }
+		if (!is_array($parsed) || empty($parsed['featuredProperties'])) {
+			return [];
+		}
 
-        return $parsed['featuredProperties'];
-    }
+		return $parsed['featuredProperties'];
+	}
 
     /**
      * Get tags for a property.
@@ -170,4 +170,28 @@ class HavenConnect_Api_Client {
 
         return $parsed['amenities'];
     }
+
+
+	public function get_properties_by_agency(string $apiKey, string $agencyUid): array {
+
+		$endpoints = [
+			"https://platform.hostfully.com/api/v3.2/properties" => [
+				"X-HOSTFULLY-APIKEY" => $apiKey
+			],
+			"https://api.hostfully.com/api/v3.2/properties" => [
+				"X-HOSTFULLY-APIKEY" => $apiKey
+			],
+		];
+
+		$params = ['agencyUid' => $agencyUid];
+
+		$parsed = $this->request($endpoints, $params);
+
+		if (!is_array($parsed) || empty($parsed['properties'])) {
+			return [];
+		}
+
+		return $parsed['properties'];
+	}
+
 }
