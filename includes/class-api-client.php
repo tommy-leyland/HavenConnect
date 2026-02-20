@@ -165,15 +165,30 @@ class HavenConnect_Api_Client {
         return [];
     }
 
+    /* PROPERTY DETAILS */
+    public function get_property_details(string $apiKey, string $propertyUid) {
+        $endpoints = [
+            "https://platform.hostfully.com/api/v3/properties/{$propertyUid}" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
+            ]
+        ];
+        return $this->request($endpoints);
+    }
+
     /* Ameneties */
-    public function get_default_amenities($apiKey) {
-        $endpoint = [
-            "https://platform.hostfully.com/api/v3/amenities" => [
-                'X-HOSTFULLY-APIKEY' => $apiKey
+    public function get_available_amenities(string $apiKey): array
+    {
+        $endpoints = [
+            "https://platform.hostfully.com/api/v3/available-amenities" => [
+                "X-HOSTFULLY-APIKEY" => $apiKey
             ]
         ];
 
-        return $this->request($endpoint);
+        $parsed = $this->request($endpoints);
+
+        if (!is_array($parsed)) return [];
+
+        return $parsed;
     }
 
     /**

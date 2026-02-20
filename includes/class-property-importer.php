@@ -78,24 +78,46 @@ class HavenConnect_Property_Importer {
         return true;
     }
 
-    /* Ameneties */
-    public function import_default_amenities($apiKey) {
+    /* BUILD AMENITY DICTIONARY */
+    public function build_amenity_dictionary(string $apiKey): array {
 
-        $list = $this->api->get_default_amenities($apiKey);
-        if (!$list || !is_array($list)) {
-            $this->logger->log("No amenity list found.");
-            return;
-        }
+        $dict = [];
+        $props = $this->api->get_featured_list($apiKey);
 
-        foreach ($list as $amenity) {
-            $name = $amenity['name'] ?? null;
-            if (!$name) continue;
+        foreach ($props as $p) {
 
-            if (!term_exists($name, 'hcn_feature')) {
-                wp_insert_term($name, 'hcn_feature');
-                $this->logger->log("Added feature term: $name");
+            $uid = $p['uid'] ?? null;
+            if (!$uid) continue;
+
+            $details = $this->api->get_property_details($apiKey, $uid);
+            if (!is_array($details)) continue;
+
+            $amenities = $details['amenities'] ?? [];
+
+            foreach ($amenities as $am) {
+                $name = trim($am);
+                if ($name !== '') {
+                    $dict[$name] = true;
+                }
             }
         }
+
+        return array_keys($dict);
+    }
+
+    /* Ameneties */
+    public function import_default_amenities(string $apiKey)
+    {
+        $list = $this->build_amenity_dictionary($apiKey);
+
+        foreach ($list as $name) {
+            if (!term_exists($name, 'hcn_feature')) {
+                wp_insert_term($name, 'hcn_feature');
+                $this->logger->log("Added amenity: $name");
+            }
+        }
+
+        $this->logger->save();
     }
 
     /**
