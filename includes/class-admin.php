@@ -131,15 +131,6 @@ class HavenConnect_Admin {
 
             <hr>
 
-            <h2>Import Default Amenity List</h2>
-            <form method="post" action="">
-                <?php wp_nonce_field('hcn_import_features'); ?>
-                <input type="hidden" name="hcn_action" value="import_features">
-                <?php submit_button('Import Features (Amenities)'); ?>
-            </form>
-
-            <hr>
-
             <!-- AJAX IMPORT SECTION -->
             <h2>Run Import (AJAX)</h2>
             <p>

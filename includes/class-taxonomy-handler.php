@@ -27,24 +27,6 @@ class HavenConnect_Taxonomy_Handler {
 
         $post_type = 'hcn_property';
 
-        // Property Features (Amenity List)
-        register_taxonomy(
-            'hcn_feature',
-            ['hcn_property'],
-            [
-                'labels' => [
-                    'name' => __('Features'),
-                    'singular_name' => __('Feature'),
-                ],
-                'public' => true,
-                'hierarchical' => false,
-                'show_ui' => true,
-                'show_admin_column' => true,
-                'show_in_rest' => true,
-                'rewrite' => ['slug' => 'feature'],
-            ]
-        );
-
         // LOCATION TAXONOMY
         register_taxonomy(
             'property_loc',

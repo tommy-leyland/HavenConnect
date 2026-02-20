@@ -78,48 +78,6 @@ class HavenConnect_Property_Importer {
         return true;
     }
 
-    /* BUILD AMENITY DICTIONARY */
-    public function build_amenity_dictionary(string $apiKey): array {
-
-        $dict = [];
-        $props = $this->api->get_featured_list($apiKey);
-
-        foreach ($props as $p) {
-
-            $uid = $p['uid'] ?? null;
-            if (!$uid) continue;
-
-            $details = $this->api->get_property_details($apiKey, $uid);
-            if (!is_array($details)) continue;
-
-            $amenities = $details['amenities'] ?? [];
-
-            foreach ($amenities as $am) {
-                $name = trim($am);
-                if ($name !== '') {
-                    $dict[$name] = true;
-                }
-            }
-        }
-
-        return array_keys($dict);
-    }
-
-    /* Ameneties */
-    public function import_default_amenities(string $apiKey)
-    {
-        $list = $this->build_amenity_dictionary($apiKey);
-
-        foreach ($list as $name) {
-            if (!term_exists($name, 'hcn_feature')) {
-                wp_insert_term($name, 'hcn_feature');
-                $this->logger->log("Added amenity: $name");
-            }
-        }
-
-        $this->logger->save();
-    }
-
     /**
     * Imports ONE property given the 'Featured list' payload shape.
     * Reuses the existing steps: upsert, tags, photos, meta, availability.

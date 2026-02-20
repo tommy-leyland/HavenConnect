@@ -175,59 +175,6 @@ class HavenConnect_Api_Client {
         return $this->request($endpoints);
     }
 
-    /* Ameneties */
-    public function get_available_amenities(string $apiKey): array
-    {
-        $endpoints = [
-            "https://platform.hostfully.com/api/v3/available-amenities" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ]
-        ];
-
-        $parsed = $this->request($endpoints);
-
-        if (!is_array($parsed)) return [];
-
-        return $parsed;
-    }
-
-    /**
-     * Fetch daily calendar (availability + pricing + rules) for a property (Hostfully v3.2).
-     * Expected response: { "calendar": [ { "date": "YYYY-MM-DD", "available": true, "price": 123.45, "minStay": 2, "maxStay": 0, "closedToArrival": false, "closedToDeparture": false }, ... ] }
-     */
-	public function get_property_calendar(string $apiKey, string $property_uid): array
-	{
-		$endpoints = [
-			"https://platform.hostfully.com/api/v3/property-calendar/{$property_uid}" => [
-				'X-HOSTFULLY-APIKEY' => $apiKey,
-			],
-		];
-
-		// ZERO query params — required by Hostfully API
-		$params = [];
-
-		$parsed = $this->request($endpoints, $params);
-
-		if (!$parsed || !is_array($parsed)) {
-			$this->logger->log("Calendar API returned invalid response for $property_uid");
-			return ['calendar' => []];
-		}
-
-		$this->logger->log("DEBUG Calendar Raw for $property_uid: " . substr(print_r($parsed, true), 0, 2000));
-
-		// If Hostfully returns array directly, wrap it.
-		if (array_is_list($parsed)) {
-			return ['calendar' => $parsed];
-		}
-
-		// If Hostfully returns "calendar" => [...]
-		if (isset($parsed['calendar'])) {
-			return ['calendar' => $parsed['calendar']];
-		}
-
-		return ['calendar' => []];
-	}
-
 
 	
 
