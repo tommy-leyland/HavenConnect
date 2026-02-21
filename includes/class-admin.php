@@ -1,331 +1,208 @@
 <?php
-
 if (!defined('ABSPATH')) exit;
 
-/**
- * HavenConnect_Admin
- *
- * Provides:
- *  - Settings page
- *  - Save API key + Agency UID
- *  - Button to trigger Featured Import
- *  - Log viewer
- */
 class HavenConnect_Admin {
 
-    private $importer;
-    private $logger;
+  const OPTION = 'havenconnect_settings';
+  const ACTION = 'havenconnect_import';
 
-    const OPTION = 'havenconnect_settings';
-    const ACTION = 'havenconnect_run_import';
+  private $importer;
+  private $logger;
 
-    public function __construct($importer, $logger) {
-        $this->importer = $importer;
-        $this->logger   = $logger;
+  public function __construct($importer, $logger) {
+    $this->importer = $importer;
+    $this->logger   = $logger;
 
-        add_action('admin_menu',        [$this, 'menu']);
-        add_action('admin_init',        [$this, 'settings_init']);
-        add_action('admin_post_'.self::ACTION, [$this, 'handle_import']);
-        add_action('admin_init', function() {
-            if (isset($_POST['hcn_action']) && $_POST['hcn_action'] === 'import_features') {
+    add_action('admin_menu', [$this, 'menu']);
+    add_action('admin_init', [$this, 'settings_init']);
 
-                check_admin_referer('hcn_import_features');
+    // keep legacy non-AJAX import handler if you still use it anywhere
+    add_action('admin_post_' . self::ACTION, [$this, 'handle_import']);
+  }
 
-                $opts = get_option(HavenConnect_Admin::OPTION, []);
-                $api  = $opts['api_key'] ?? '';
+  public function menu() {
+    add_options_page(
+      'HavenConnect',
+      'HavenConnect',
+      'manage_options',
+      'havenconnect',
+      [$this, 'render_settings_page']
+    );
+  }
 
-                $importer = $GLOBALS['havenconnect']['importer'] ?? null;
-                if ($importer) {
-                    $importer->import_default_amenities($api);
-                }
+  public function settings_init() {
+    register_setting(self::OPTION, self::OPTION, function($v){
+      return [
+        'api_key'     => sanitize_text_field($v['api_key'] ?? ''),
+        'agency_uid'  => sanitize_text_field($v['agency_uid'] ?? ''),
+      ];
+    });
 
-                wp_redirect(admin_url('options-general.php?page=havenconnect'));
-                exit;
-            }
-        });
-    }
+    add_settings_section(
+      'hcn_section_main',
+      'HavenConnect Settings',
+      function(){ echo '<p>Enter your Hostfully credentials.</p>'; },
+      'havenconnect'
+    );
 
-    public function menu() {
-        add_options_page(
-            'HavenConnect',
-            'HavenConnect',
-            'manage_options',
-            'havenconnect',
-            [$this, 'render_settings_page']
-        );
-    }
+    add_settings_field('hcn_api_key', 'API Key', [$this, 'field_api_key'], 'havenconnect', 'hcn_section_main');
+    add_settings_field('hcn_agency_uid', 'Agency UID', [$this, 'field_agency_uid'], 'havenconnect', 'hcn_section_main');
+  }
 
-    public function settings_init() {
+  public function field_api_key() {
+    $opts = get_option(self::OPTION, []);
+    $val  = esc_attr($opts['api_key'] ?? '');
+    echo "<input type='text' name='" . self::OPTION . "[api_key]' value='{$val}' class='regular-text' />";
+  }
 
-        register_setting(self::OPTION, self::OPTION, function($v){
-            return [
-                'api_key'   => sanitize_text_field($v['api_key']   ?? ''),
-                'agency_uid'=> sanitize_text_field($v['agency_uid'] ?? ''),
-            ];
-        });
+  public function field_agency_uid() {
+    $opts = get_option(self::OPTION, []);
+    $val  = esc_attr($opts['agency_uid'] ?? '');
+    echo "<input type='text' name='" . self::OPTION . "[agency_uid]' value='{$val}' class='regular-text' />";
+  }
 
-        add_settings_section(
-            'hcn_section_main',
-            'HavenConnect Settings',
-            function() { echo '<p>Enter your PMS credentials.</p>'; },
-            'havenconnect'
-        );
+  public function render_settings_page() {
+    if (!current_user_can('manage_options')) return;
 
-        add_settings_field(
-            'hcn_api_key',
-            'API Key',
-            [$this, 'field_api_key'],
-            'havenconnect',
-            'hcn_section_main'
-        );
+    $nonce = wp_create_nonce('hcn_import_nonce');
+    $ajax  = admin_url('admin-ajax.php');
+    ?>
+    <div class="wrap">
+      <h1>HavenConnect</h1>
 
-        add_settings_field(
-            'hcn_agency_uid',
-            'Agency UID',
-            [$this, 'field_agency_uid'],
-            'havenconnect',
-            'hcn_section_main'
-        );
-    }
-
-    /** Render API key field */
-    public function field_api_key() {
-        $opts = get_option(self::OPTION, []);
-        ?>
-        <input type="password"
-               class="regular-text"
-               name="<?php echo self::OPTION; ?>[api_key]"
-               value="<?php echo esc_attr($opts['api_key'] ?? ''); ?>">
+      <form method="post" action="options.php">
         <?php
-    }
-
-    /** Render Agency UID field */
-    public function field_agency_uid() {
-        $opts = get_option(self::OPTION, []);
+          settings_fields(self::OPTION);
+          do_settings_sections('havenconnect');
+          submit_button('Save Settings');
         ?>
-        <input type="text"
-               class="regular-text"
-               name="<?php echo self::OPTION; ?>[agency_uid]"
-               value="<?php echo esc_attr($opts['agency_uid'] ?? ''); ?>">
-        <?php
-    }
+      </form>
 
-    /**
-     * Main settings page markup
-     */
-    public function render_settings_page() {
-        $opts  = get_option(self::OPTION, []);
-        $nonce = wp_create_nonce('hcn_import_nonce');
-        ?>
-        <div class="wrap">
-            <h1>HavenConnect</h1>
+      <hr />
 
-            <!-- SETTINGS FORM -->
-            <form method="post" action="options.php">
-                <?php
-                    settings_fields(self::OPTION);
-                    do_settings_sections('havenconnect');
-                    submit_button('Save Settings');
-                ?>
-            </form>
+      <h2>Run Import (AJAX)</h2>
+      <p>
+        Queue always builds from <b>ALL properties</b> by default (no “featured” reliance).
+        Choose how many to run, or test a single property UID.
+      </p>
 
-            <hr>
+      <table class="form-table" role="presentation">
+        <tr>
+          <th scope="row">Run first N properties</th>
+          <td>
+            <input type="number" id="hcn_run_limit" value="10" min="1" style="width:90px" />
+            <button class="button button-primary" id="hcn_run_first_n">Run First N</button>
+            <button class="button" id="hcn_run_all">Run All</button>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Test single property UID</th>
+          <td>
+            <input type="text" id="hcn_single_uid" placeholder="e.g. f65acb5e-bf68-..." style="width:420px" />
+            <button class="button" id="hcn_run_single">Run Single</button>
+          </td>
+        </tr>
+      </table>
 
-            <!-- AJAX IMPORT SECTION -->
-            <h2>Run Import (AJAX)</h2>
-            <p>
-                Imports all Featured properties via background AJAX requests.
-                Zero timeouts, live progress below.
-            </p>
+      <div id="hcn_progress" style="margin-top:12px;"></div>
 
-            <div id="hcn-import-ui" style="padding:12px;border:1px solid #ddd;background:#fafafa;margin-bottom:20px;">
-                <button id="hcn-import-start" class="button button-primary">
-                    Run AJAX Import
-                </button>
-                <span id="hcn-import-status" style="margin-left:10px;font-weight:bold;"></span>
+      <h2>Log</h2>
+      <pre style="background:#111;color:#ddd;padding:12px;max-height:380px;overflow:auto;"><?php
+        echo esc_html($this->logger->get() ?: '');
+      ?></pre>
+    </div>
 
-                <div id="hcn-import-log"
-                    style="margin-top:12px;max-height:300px;overflow:auto;background:#fff;border:1px solid #ccc;padding:10px;font-size:12px;">
-                </div>
-            </div>
+    <script>
+    (function(){
+      const ajaxUrl = <?php echo json_encode($ajax); ?>;
+      const nonce   = <?php echo json_encode($nonce); ?>;
 
-            <!-- NONCE FOR AJAX -->
-            <script>
-            const HCN_IMPORT_NONCE = "<?php echo esc_js($nonce); ?>";
-            const HCN_AJAX_URL     = "<?php echo esc_js(admin_url('admin-ajax.php')); ?>";
-            </script>
+      async function post(action, data){
+        const fd = new FormData();
+        fd.append('action', action);
+        fd.append('nonce', nonce);
+        Object.keys(data||{}).forEach(k => fd.append(k, data[k]));
+        const res = await fetch(ajaxUrl, { method:'POST', credentials:'same-origin', body: fd });
+        return res.json();
+      }
 
-            <!-- AJAX IMPORT SCRIPT -->
-            <script>
-            (function(){
+      function setProgress(html){
+        document.getElementById('hcn_progress').innerHTML = html;
+      }
 
-            const ajaxUrl = HCN_AJAX_URL;
-            const nonce   = HCN_IMPORT_NONCE;
+      async function runQueue(runLimit, mode, singleUid){
+        setProgress('Building queue…');
 
-            const startBtn = document.getElementById('hcn-import-start');
-            const statusEl = document.getElementById('hcn-import-status');
-            const logEl    = document.getElementById('hcn-import-log');
+        const startPayload = { mode: mode || 'all' };
+        if (singleUid) startPayload.property_uid = singleUid;
 
-            // --- PROGRESS BAR ---
-            let barContainer = document.createElement('div');
-            barContainer.style.width = "100%";
-            barContainer.style.height = "18px";
-            barContainer.style.background = "#e2e2e2";
-            barContainer.style.marginTop = "10px";
-            barContainer.style.borderRadius = "4px";
-
-            let barFill = document.createElement('div');
-            barFill.style.height = "100%";
-            barFill.style.width = "0%";
-            barFill.style.background = "#007cba";
-            barFill.style.borderRadius = "4px";
-            barFill.style.transition = "width 0.25s ease";
-
-            barContainer.appendChild(barFill);
-            statusEl.parentNode.insertBefore(barContainer, statusEl.nextSibling);
-
-            function setProgress(percent) {
-                barFill.style.width = percent + "%";
-            }
-
-            // --- LOG HELPER ---
-            function log(msg, isError=false) {
-                const p = document.createElement('div');
-                p.textContent = msg;
-                if (isError) p.style.color = '#a00';
-                logEl.appendChild(p);
-                logEl.scrollTop = logEl.scrollHeight;
-            }
-
-            function setStatus(t) {
-                statusEl.textContent = t;
-            }
-
-            async function post(action, data) {
-                const form = new FormData();
-                form.append('action', action);
-                form.append('nonce',  nonce);
-
-                for (const k in data) form.append(k, data[k]);
-
-                const res  = await fetch(ajaxUrl, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    body: form
-                });
-
-                const json = await res.json();
-
-                if (!json.success) {
-                    throw new Error(json.data && json.data.message ? json.data.message : "Unknown error");
-                }
-
-                return json.data;
-            }
-
-            async function importQueue(job_id, items) {
-                const total = items.length;
-
-                for (let i = 0; i < total; i++) {
-                    const it = items[i];
-
-                    const pct = Math.round(((i) / total) * 100);
-                    setProgress(pct);
-
-                    setStatus(`Importing ${i+1} of ${total}: ${it.name}`);
-
-                    try {
-                        await post('hcn_import_single', {
-                            job_id: job_id,
-                            index:  i
-                        });
-                        log(`✔ Imported: ${it.name}`);
-                    } catch (e) {
-                        log(`✖ Failed: ${it.name} – ${e.message}`, true);
-                    }
-                }
-
-                // 100%
-                setProgress(100);
-            }
-
-            async function finish(job_id) {
-                try { await post('hcn_import_finish', { job_id }); }
-                catch(e){}
-
-                setStatus('Done.');
-            }
-
-            // --- BUTTON CLICK ---
-            startBtn.addEventListener('click', async function() {
-                startBtn.disabled = true;
-                logEl.innerHTML = "";
-                setProgress(0);
-                setStatus('Preparing queue...');
-
-                try {
-                    const start = await post('hcn_import_start', {});
-                    log(`Queue created for ${start.total} properties.`);
-
-                    await importQueue(start.job_id, start.items);
-                    await finish(start.job_id);
-                }
-                catch(e){
-                    log("Start failed: " + e.message, true);
-                    setStatus('Failed.');
-                }
-                finally {
-                    startBtn.disabled = false;
-                }
-            });
-
-        })();
-            </script>
-
-            <hr>
-
-            <!-- OLD LOG VIEWER -->
-            <?php $this->render_log(); ?>
-        </div>
-        <?php
-    }
-
-    /**
-     * Handle Import Submission
-     */
-    public function handle_import() {
-        if (!current_user_can('manage_options')) wp_die('Permission denied.');
-        check_admin_referer(self::ACTION);
-
-        $opts = get_option(self::OPTION, []);
-        $api  = $opts['api_key']    ?? '';
-        $uid  = $opts['agency_uid'] ?? '';
-
-        if (!$api || !$uid) {
-            $this->logger->log('Missing API key or Agency UID.');
-            $this->logger->save();
-            wp_redirect(admin_url('options-general.php?page=havenconnect'));
-            exit;
+        const start = await post('hcn_import_start', startPayload);
+        if (!start.success) {
+          setProgress('<span style="color:#b00;">Start failed: ' + (start.data?.message || 'Unknown') + '</span>');
+          return;
         }
 
-        $this->importer->run_import($api, $uid);
-        $this->logger->save();
+        const jobId = start.data.job_id;
+        const total = start.data.total;
+        const limit = (runLimit === null) ? total : Math.min(runLimit, total);
 
-        wp_redirect(admin_url('options-general.php?page=havenconnect'));
-        exit;
+        setProgress('Queue created (' + start.data.source + '): ' + total + ' items. Running ' + limit + '…');
+
+        for (let i=0; i<limit; i++){
+          setProgress('Importing ' + (i+1) + ' / ' + limit + ' …');
+          const single = await post('hcn_import_single', { job_id: jobId, index: i });
+          if (!single.success){
+            setProgress('<span style="color:#b00;">Error on index ' + i + ': ' + (single.data?.message || 'Unknown') + '</span>');
+            return;
+          }
+        }
+
+        await post('hcn_import_finish', { job_id: jobId });
+        setProgress('<b>Done.</b> Imported ' + limit + ' item(s). Refresh page to see latest log.');
+      }
+
+      document.getElementById('hcn_run_first_n').addEventListener('click', function(e){
+        e.preventDefault();
+        const n = parseInt(document.getElementById('hcn_run_limit').value || '10', 10);
+        runQueue(n, 'all', '');
+      });
+
+      document.getElementById('hcn_run_all').addEventListener('click', function(e){
+        e.preventDefault();
+        runQueue(null, 'all', '');
+      });
+
+      document.getElementById('hcn_run_single').addEventListener('click', function(e){
+        e.preventDefault();
+        const uid = (document.getElementById('hcn_single_uid').value || '').trim();
+        if (!uid) {
+          setProgress('<span style="color:#b00;">Enter a property UID first.</span>');
+          return;
+        }
+        // Build a single-item queue and import index 0
+        runQueue(1, 'all', uid);
+      });
+
+    })();
+    </script>
+    <?php
+  }
+
+  // Legacy handler (kept)
+  public function handle_import() {
+    if (!current_user_can('manage_options')) wp_die('Unauthorized');
+    $opts = get_option(self::OPTION, []);
+    $api  = $opts['api_key'] ?? '';
+    $uid  = $opts['agency_uid'] ?? '';
+    if (!$api || !$uid) {
+      $this->logger->log('Missing API key or Agency UID.');
+      $this->logger->save();
+      wp_redirect(admin_url('options-general.php?page=havenconnect'));
+      exit;
     }
-
-    /**
-     * Log viewer
-     */
-    private function render_log() {
-        $log = $this->logger->get();
-        if (!$log) return;
-
-        echo '<h2>Last Log</h2>';
-        echo '<pre style="background:#111;color:#eee;padding:12px;max-height:350px;overflow:auto;border-radius:6px;">';
-        echo esc_html($log);
-        echo '</pre>';
-    }
-}
-
+    $this->importer->run_import($api, $uid);
+    $this->logger->save();
+    wp_redirect(admin_url('options-general.php?page=havenconnect'));
+    exit;
+  }
+}
