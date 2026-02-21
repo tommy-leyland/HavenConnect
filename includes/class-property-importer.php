@@ -156,6 +156,21 @@ class HavenConnect_Property_Importer {
     return $post_id;
   }
 
+    private function set_meta_unless_locked(int $post_id, string $meta_key, $value): void {
+        // If the field is locked in admin UI, don't overwrite it during import
+        $locked = get_post_meta($post_id, "{$meta_key}_locked", true);
+        if ($locked === '1') {
+            $this->logger->log("Meta locked: skipping {$meta_key} for post_id={$post_id}");
+            return;
+        }
+
+        if ($value !== null && $value !== '' && $value !== []) {
+            update_post_meta($post_id, $meta_key, $value);
+        } else {
+            delete_post_meta($post_id, $meta_key);
+        }
+    }
+
   /**
    * Descriptions import:
    * - long -> post_content
@@ -163,96 +178,96 @@ class HavenConnect_Property_Importer {
    *
    * Also stores full payload in meta (for debugging/mapping): hcn_property_descriptions
    */
-  private function import_property_descriptions(string $apiKey, string $propertyUid, int $post_id): void {
+    private function import_property_descriptions(string $apiKey, string $propertyUid, int $post_id): void {
     if (!method_exists($this->api, 'get_property_descriptions')) return;
 
     $payload = $this->api->get_property_descriptions($apiKey, $propertyUid);
     if (!is_array($payload) || empty($payload)) {
-      $this->logger->log("Descriptions: none returned for {$propertyUid}.");
-      return;
+        $this->logger->log("Descriptions: none returned for {$propertyUid}.");
+        return;
     }
 
-    // Store raw payload so we can map keys without guessing
-    update_post_meta($post_id, 'hcn_property_descriptions', wp_json_encode($payload));
+    // Optional: remove the big JSON blob once you're confident it works
+    // (keeping it can bloat your DB with 300 properties)
+    // update_post_meta($post_id, 'hcn_property_descriptions', wp_json_encode($payload));
 
     $record = $this->pick_best_description_record($payload);
     if (empty($record)) {
-      $this->logger->log("Descriptions: payload returned but no usable record for {$propertyUid}.");
-      return;
+        $this->logger->log("Descriptions: payload returned but no usable record for {$propertyUid}.");
+        return;
     }
 
     $this->logger->log("Descriptions: record keys for {$propertyUid}: " . implode(',', array_keys($record)));
 
+    // Hostfully keys we care about
+    $summary = trim((string)($record['summary'] ?? ''));
     $short   = trim((string)($record['shortSummary'] ?? ''));
-$summary = trim((string)($record['summary'] ?? ''));
 
-// Write ONLY summary into post_content (not the other sections)
-$content = $summary;
+    // Normalise Hostfully "nn" line breaks
+    $norm = function($v) {
+        if (!is_string($v)) return '';
+        $v = str_replace("nn", "\n\n", $v);
+        return trim($v);
+    };
 
-// Excerpt
-$excerpt = $short !== '' ? $short : $summary;
+    $summary = $norm($summary);
+    $short   = $norm($short);
 
-// ACF: store the sections separately (NO houseManual)
-if (function_exists('update_field')) {
-  $acf_map = [
-    'property_space'         => 'space',
-    'property_neighbourhood' => 'neighbourhood',
-    'property_access'        => 'access',
-    'property_transit'       => 'transit',
-    'property_interaction'   => 'interaction',
-    'property_notes'         => 'notes',
-  ];
+    // ✅ WP content = summary ONLY
+    $content = $summary;
 
-  foreach ($acf_map as $acf_key => $hostfully_key) {
-    $val = trim((string)($record[$hostfully_key] ?? ''));
-    if ($val !== '') {
-      update_field($acf_key, wp_kses_post($val), $post_id);
+    // ✅ WP excerpt = shortSummary fallback to summary
+    $excerpt = ($short !== '') ? $short : $summary;
+
+    // ✅ WP Custom Fields (post meta) for sections (NO house manual)
+    $meta_map = [
+        'property_space'         => 'space',
+        'property_neighbourhood' => 'neighbourhood',
+        'property_access'        => 'access',
+        'property_transit'       => 'transit',
+        'property_interaction'   => 'interaction',
+        'property_notes'         => 'notes',
+    ];
+
+    foreach ($meta_map as $meta_key => $hostfully_key) {
+        $val = $record[$hostfully_key] ?? '';
+        $val = $norm($val);
+
+        if ($val !== '' && strtolower($val) !== 'null') {
+        update_post_meta($post_id, $meta_key, $val);
+        } else {
+        delete_post_meta($post_id, $meta_key);
+        }
     }
-  }
 
-  // optional: if you created this field, fill it with just summary too:
-  // update_field('property_long_description', wp_kses_post($summary), $post_id);
-}
-    
+    $this->logger->log("Descriptions: {$propertyUid} summary_len=" . strlen($summary) . " short_len=" . strlen($short));
 
-    if (!empty(trim($combined))) {
-    update_field('property_long_description', $combined, $post_id);
-    }
-    $content = trim((string)$fields['long']);
-    $excerpt = trim((string)$fields['short']);
-
-    $long_len  = strlen(trim(strip_tags($content)));
-    $short_len = strlen(trim(strip_tags($excerpt)));
-
-    $this->logger->log("Descriptions: {$propertyUid} long_len={$long_len} short_len={$short_len}");
-
+    // Write to WP post_content / excerpt
     $update = ['ID' => $post_id];
 
     if ($content !== '') {
-      // preserve safe HTML
-      $update['post_content'] = wp_kses_post($content);
+        $update['post_content'] = wp_kses_post(wpautop($content));
+    } else {
+        // If you prefer to keep old content when summary is empty, remove this else block.
+        $update['post_content'] = '';
     }
 
     if ($excerpt !== '') {
-      $update['post_excerpt'] = wp_strip_all_tags($excerpt);
+        $update['post_excerpt'] = wp_strip_all_tags($excerpt);
+    } else {
+        $update['post_excerpt'] = '';
     }
 
-    if (count($update) > 1) {
-      $res = wp_update_post($update, true);
-      $saved = get_post_field('post_content', $post_id);
-      $this->logger->log("Descriptions: saved post_content_len=" . strlen((string)$saved) . " for {$propertyUid}");
-      if (is_wp_error($res)) {
+    $res = wp_update_post($update, true);
+    if (is_wp_error($res)) {
         $this->logger->log("Descriptions: wp_update_post error for {$propertyUid}: " . $res->get_error_message());
-      } else {
-        $changed = [];
-        if (isset($update['post_content'])) $changed[] = 'content';
-        if (isset($update['post_excerpt'])) $changed[] = 'excerpt';
-        $this->logger->log("Descriptions: updated " . implode('+', $changed) . " for {$propertyUid} (post_id={$post_id}).");
-      }
-    } else {
-      $this->logger->log("Descriptions: record found but nothing to write for {$propertyUid}.");
+        return;
     }
-  }
+
+    // Read-back proof
+    $saved = get_post_field('post_content', $post_id);
+    $this->logger->log("Descriptions: saved post_content_len=" . strlen((string)$saved) . " for {$propertyUid}");
+    }
 
   /**
    * Your payload starts like:

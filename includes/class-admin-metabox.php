@@ -115,6 +115,7 @@ function hcn_render_property_meta_box($post) {
         <div class="hcn-tabs-nav">
             <a href="#hcn-tab-basics">Basics</a>
             <a href="#hcn-tab-location">Location</a>
+            <a href="#hcn-tab-descriptions">Descriptions</a>
             <a href="#hcn-tab-images">Images</a>
         </div>
 
@@ -173,6 +174,64 @@ function hcn_render_property_meta_box($post) {
                 <tr><td><strong>Latitude:</strong></td><td><?= esc_html($fields['latitude']); ?></td></tr>
                 <tr><td><strong>Longitude:</strong></td><td><?= esc_html($fields['longitude']); ?></td></tr>
             </table>
+        </div>
+
+        <!-- DESCRIPTIONS TAB -->
+        <div id="hcn-tab-descriptions" class="hcn-tab-pane">
+
+            <style>
+                .hcn-textarea {
+                    width: 100%;
+                    max-width: 100%;
+                    min-height: 110px;
+                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                    font-size: 12px;
+                    line-height: 1.35;
+                }
+                .hcn-desc-row td { padding: 10px 10px; }
+                .hcn-desc-label { width: 180px; }
+            </style>
+
+            <?php
+            // Helper: render textarea field + lock
+            if (!function_exists('hcn_render_editable_textarea_row')) {
+                function hcn_render_editable_textarea_row($label, $meta_key, $post_id) {
+                    $value  = (string) get_post_meta($post_id, $meta_key, true);
+                    $locked = get_post_meta($post_id, "{$meta_key}_locked", true);
+                    ?>
+                    <tr class="hcn-desc-row">
+                        <td class="hcn-desc-label"><strong><?= esc_html($label); ?>:</strong></td>
+                        <td>
+                            <textarea
+                                class="hcn-textarea"
+                                name="hcn_edit[<?= esc_attr($meta_key); ?>]"
+                            ><?= esc_textarea($value); ?></textarea>
+
+                            <label style="display:inline-block;margin-top:6px;">
+                                <input
+                                    type="checkbox"
+                                    name="hcn_edit[<?= esc_attr($meta_key); ?>_locked]"
+                                    value="1"
+                                    <?= checked($locked, "1", false); ?>
+                                >
+                                Lock (prevent sync overwrite)
+                            </label>
+                        </td>
+                    </tr>
+                    <?php
+                }
+            }
+            ?>
+
+            <table class="hcn-meta-table" style="width:100%;">
+                <?php hcn_render_editable_textarea_row("The space",        "property_space",         $post->ID); ?>
+                <?php hcn_render_editable_textarea_row("Neighbourhood",    "property_neighbourhood", $post->ID); ?>
+                <?php hcn_render_editable_textarea_row("Access",           "property_access",        $post->ID); ?>
+                <?php hcn_render_editable_textarea_row("Getting around",   "property_transit",       $post->ID); ?>
+                <?php hcn_render_editable_textarea_row("Interaction",      "property_interaction",   $post->ID); ?>
+                <?php hcn_render_editable_textarea_row("Notes",            "property_notes",         $post->ID); ?>
+            </table>
+
         </div>
 
         <!-- IMAGES TAB -->
