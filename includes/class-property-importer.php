@@ -229,48 +229,61 @@ class HavenConnect_Property_Importer {
     return is_array($list[0]) ? $list[0] : [];
   }
 
-  private function extract_description_fields(array $row): array {
-    // Be defensive: accounts/versions differ
-    $longCandidates = [
-      'longDescription','longDescriptionHtml',
-      'publicDescription','publicDescriptionHtml',
-      'description','descriptionHtml',
-      'propertyDescription','text','body','content',
+    private function hcn_extract_desc_fields(array $row): array {
+
+    $longKeys = [
+        'longDescription','longDescriptionHtml',
+        'publicDescription','publicDescriptionHtml',
+        'description','descriptionHtml',
+        'propertyDescription','content','body','text'
     ];
-    $shortCandidates = [
-      'shortDescription','shortDescriptionHtml',
-      'summary','headline','shortText','teaser',
+
+    $shortKeys = [
+        'shortDescription','shortDescriptionHtml',
+        'summary','headline','shortText','teaser'
+    ];
+
+    $manualKeys = [
+        'houseManual','houseManualHtml','manual','guidebook'
     ];
 
     $pick = function(array $src, array $keys): string {
-      foreach ($keys as $k) {
+        foreach ($keys as $k) {
         if (!array_key_exists($k, $src)) continue;
+
         $v = $src[$k];
 
         if (is_string($v)) return $v;
 
+        // Sometimes it’s wrapped
         if (is_array($v)) {
-          foreach (['value','text','html','content','body'] as $sub) {
+            foreach (['value','text','html','content','body'] as $sub) {
             if (isset($v[$sub]) && is_string($v[$sub])) return $v[$sub];
-          }
-          $flat = [];
-          array_walk_recursive($v, function($vv) use (&$flat){
+            }
+            // last resort: flatten string parts
+            $flat = [];
+            array_walk_recursive($v, function($vv) use (&$flat){
             if (is_string($vv)) $flat[] = $vv;
-          });
-          if (!empty($flat)) return implode("\n\n", $flat);
+            });
+            if (!empty($flat)) return implode("\n\n", $flat);
         }
-      }
-      return '';
+        }
+        return '';
     };
 
-    $long  = $pick($row, $longCandidates);
-    $short = $pick($row, $shortCandidates);
+    $long   = $pick($row, $longKeys);
+    $short  = $pick($row, $shortKeys);
+    $manual = $pick($row, $manualKeys);
+
+    // Log lengths so we can confirm long exists (no content leaked)
+    $this->logger->log("Descriptions: long_len=" . strlen(trim(strip_tags($long))) . " short_len=" . strlen(trim(strip_tags($short))));
 
     return [
-      'long'  => $long,
-      'short' => $short,
+        'long'   => $long,
+        'short'  => $short,
+        'manual' => $manual,
     ];
-  }
+    }
 
   /** -----------------------------------------------------------
    * AMENITIES → Features taxonomy (per property)

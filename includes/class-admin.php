@@ -124,6 +124,7 @@ class HavenConnect_Admin {
 
       let logTimer = null;
       let running  = false;
+      let logOffset = 0;
 
       function setProgress(html){
         document.getElementById('hcn_progress').innerHTML = html;
@@ -170,17 +171,21 @@ class HavenConnect_Admin {
       }
 
       async function fetchLog(){
-        const res = await post('hcn_get_log', { tail: 25000 });
-        if (res && res.success && res.data && typeof res.data.log === 'string') {
-          const el = document.getElementById('hcn_log_live');
-          if (!el) return;
+        const res = await post('hcn_get_log', { offset: logOffset });
+        if (res && res.success && res.data) {
+            const chunk = res.data.chunk || '';
+            logOffset = typeof res.data.offset === 'number' ? res.data.offset : logOffset;
 
-          // keep scroll at bottom if already at bottom
-          const atBottom = (el.scrollTop + el.clientHeight) >= (el.scrollHeight - 20);
-          el.textContent = res.data.log;
-          if (atBottom) el.scrollTop = el.scrollHeight;
+            if (chunk) {
+            const el = document.getElementById('hcn_log_live');
+            if (!el) return;
+
+            const atBottom = (el.scrollTop + el.clientHeight) >= (el.scrollHeight - 20);
+            el.textContent += chunk;
+            if (atBottom) el.scrollTop = el.scrollHeight;
+            }
         }
-      }
+        }
 
       function startLogPolling(){
         stopLogPolling();
@@ -212,6 +217,9 @@ class HavenConnect_Admin {
 
           const startPayload = { mode: mode || 'all' };
           if (singleUid) startPayload.property_uid = singleUid;
+
+          document.getElementById('hcn_log_live').textContent = '';
+          logOffset = 0;
 
           const start = await post('hcn_import_start', startPayload);
           if (!start.success) {

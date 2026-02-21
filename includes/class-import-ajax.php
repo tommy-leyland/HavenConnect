@@ -37,6 +37,7 @@ add_action('init', function () {
   add_action('wp_ajax_hcn_import_single', 'hcn_import_single_handler');
   add_action('wp_ajax_hcn_import_finish', 'hcn_import_finish_handler');
   add_action('wp_ajax_hcn_get_log', 'hcn_get_log_handler');
+  
 });
 
 /**
@@ -301,19 +302,30 @@ function hcn_get_log_handler() {
   /** @var HavenConnect_Logger $logger */
   $logger = $hc['logger'];
 
-  $tail = isset($_POST['tail']) ? max(1000, (int) $_POST['tail']) : 12000;
-
-  $text = '';
-  if (method_exists($logger, 'get')) {
-    $text = (string) $logger->get();
+  $path = method_exists($logger, 'path') ? $logger->path() : null;
+  if (!$path || !file_exists($path)) {
+    wp_send_json_success(['chunk' => '', 'offset' => 0, 'size' => 0]);
   }
 
-  // Return last N chars (keeps payload small)
-  if (strlen($text) > $tail) {
-    $text = substr($text, -$tail);
+  $offset = isset($_POST['offset']) ? max(0, (int)$_POST['offset']) : 0;
+  $size   = (int)@filesize($path);
+
+  // If log was cleared/truncated, reset offset
+  if ($offset > $size) $offset = 0;
+
+  $chunk = '';
+  $fp = @fopen($path, 'rb');
+  if ($fp) {
+    if ($offset > 0) {
+      fseek($fp, $offset);
+    }
+    $chunk = stream_get_contents($fp);
+    fclose($fp);
   }
 
   wp_send_json_success([
-    'log' => $text,
+    'chunk'  => is_string($chunk) ? $chunk : '',
+    'offset' => $size,
+    'size'   => $size,
   ]);
 }
