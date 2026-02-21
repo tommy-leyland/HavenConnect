@@ -118,32 +118,44 @@ class HavenConnect_Api_Client {
     */
     public function get_property_tags(string $apiKey, string $propertyUid): array {
 
-        // 1) Try the v3.2 pattern used by your account (/photos, /amenities both do this)
-        $endpoints_v32 = [
-            "https://platform.hostfully.com/api/v3.2/tags" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-            "https://sandbox.hostfully.com/api/v3.2/tags" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-        ];
-        $parsed = $this->request($endpoints_v32, ['propertyUid' => $propertyUid]);
-        $asList = $this->normalize_tags_payload($parsed);
-        if (!empty($asList)) return $asList;
+	// Hostfully v3.2: Get tags for object
+	// GET /api/v3.2/tags?objectUid={uid}&objectType=PROPERTY
+	$endpoints_v32 = [
+		"https://platform.hostfully.com/api/v3.2/tags" => [
+		"X-HOSTFULLY-APIKEY" => $apiKey
+		],
+		"https://sandbox.hostfully.com/api/v3.2/tags" => [
+		"X-HOSTFULLY-APIKEY" => $apiKey
+		],
+	];
 
-        // 2) Fallback to the older v3 path (some accounts still use it)
-        $endpoints_v3 = [
-            "https://platform.hostfully.com/api/v3/properties/{$propertyUid}/tags" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-            "https://sandbox.hostfully.com/api/v3/properties/{$propertyUid}/tags" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-        ];
-        $parsed = $this->request($endpoints_v3);
-        $asList = $this->normalize_tags_payload($parsed);
-        return $asList;
-    }
+	$parsed = $this->request($endpoints_v32, [
+		'objectUid'  => $propertyUid,
+		'objectType' => 'PROPERTY',
+	]);
+
+	$asList = $this->normalize_tags_payload($parsed);
+	if (!empty($asList)) {
+		return $asList;
+	}
+
+	// Fallback: Hostfully v3 also uses /api/v3/tags with objectUid/objectType
+	$endpoints_v3 = [
+		"https://platform.hostfully.com/api/v3/tags" => [
+		"X-HOSTFULLY-APIKEY" => $apiKey
+		],
+		"https://sandbox.hostfully.com/api/v3/tags" => [
+		"X-HOSTFULLY-APIKEY" => $apiKey
+		],
+	];
+
+	$parsed = $this->request($endpoints_v3, [
+		'objectUid'  => $propertyUid,
+		'objectType' => 'PROPERTY',
+	]);
+
+	return $this->normalize_tags_payload($parsed);
+	}
 
     
 

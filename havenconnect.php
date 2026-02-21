@@ -73,7 +73,7 @@ add_action('init', function () {
 
     // --- Core singletons (build once, shared everywhere)
     $logger = new HavenConnect_Logger('hcn_log');
-    $tax    = new HavenConnect_Taxonomy_Handler($logger);
+    $tax = new HavenConnect_Taxonomy_Handler('hcn_property', $logger);
 
     $api    = new HavenConnect_Api_Client($logger);
     $photos = new HavenConnect_Photo_Sync($logger);
