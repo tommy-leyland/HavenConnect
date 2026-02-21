@@ -36,9 +36,11 @@ hcn_require('class-property-importer.php');
 hcn_require('class-admin-metabox.php');
 hcn_require('class-admin.php');
 hcn_require('admin-save-hooks.php');
-require_once __DIR__ . '/includes/class-search-shortcode.php';
+hcn_require('class-availability-cleanup-hooks.php');
+hcn_require('class-search-shortcode.php');
+// hcn_require('class-availability-cron.php'); optional later - cron jobs to clear database of old availability data
 new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
-// hcn_require('class-import-cron.php'); // optional later
+// hcn_require('class-import-cron.php'); // optional later cron
 
 /**
  * Create availability table on activation

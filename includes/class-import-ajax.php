@@ -68,6 +68,13 @@ function hcn_import_start_handler() {
     $logger->clear();
   }
 
+  // Purge orphan availability rows before building a new queue (failsafe)
+  if (!empty($GLOBALS['havenconnect']['availability_table'])
+      && method_exists($GLOBALS['havenconnect']['availability_table'], 'purge_orphan_rows')) {
+    $n = $GLOBALS['havenconnect']['availability_table']->purge_orphan_rows();
+    $logger->log("Availability: purged {$n} orphan rows.");
+  }
+
   $settings  = hcn_ajax_get_settings();
   $apiKey    = $settings['apiKey'];
   $agencyUid = $settings['agencyUid'];

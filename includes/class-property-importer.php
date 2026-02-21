@@ -304,13 +304,37 @@ class HavenConnect_Property_Importer {
       'post_type'      => 'hcn_property',
       'meta_key'       => '_havenconnect_uid',
       'meta_value'     => $uid,
-      'post_status'    => ['publish','draft','pending','private'],
+      'post_status'    => ['publish','draft','pending','private','trash'],
       'fields'         => 'ids',
       'numberposts'    => 1,
       'no_found_rows'  => true,
     ]);
 
+    if (is_array($existing) && count($existing) > 1) {
+      // Keep newest (highest ID)
+      rsort($existing);
+      $keep = (int)$existing[0];
+
+      foreach (array_slice($existing, 1) as $dup_id) {
+        // Remove the UID mapping so it can't be matched again
+        delete_post_meta((int)$dup_id, '_havenconnect_uid');
+
+        // Optionally keep them in trash/draft to avoid clutter
+        wp_update_post([
+          'ID' => (int)$dup_id,
+          'post_status' => 'trash',
+        ]);
+      }
+
+      $existing = [$keep];
+    }
+
     $post_id = $existing ? (int)$existing[0] : 0;
+
+    if ($post_id && get_post_status($post_id) === 'trash') {
+      // Bring it back instead of creating duplicates
+      wp_untrash_post($post_id);
+    }
 
     $postarr = [
       'ID'          => $post_id,

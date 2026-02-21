@@ -91,4 +91,27 @@ class HavenConnect_Availability_Table {
       $wpdb->query("ALTER TABLE {$table} ADD KEY idx_date (for_date)");
     }
   }
+
+  public function delete_rows_for_post(int $post_id): int {
+    global $wpdb;
+    $table = $wpdb->prefix . 'hcn_availability';
+    $wpdb->delete($table, ['post_id' => $post_id], ['%d']);
+    return (int) $wpdb->rows_affected;
+  }
+
+  public function purge_orphan_rows(): int {
+    global $wpdb;
+    $table = $wpdb->prefix . 'hcn_availability';
+
+    $sql = "
+        DELETE a
+        FROM {$table} a
+        LEFT JOIN {$wpdb->posts} p ON p.ID = a.post_id
+        WHERE p.ID IS NULL
+    ";
+
+    $wpdb->query($sql);
+    return (int) $wpdb->rows_affected;
+    }
+
 }

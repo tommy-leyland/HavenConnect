@@ -44,6 +44,21 @@ class HavenConnect_Search_Shortcode {
     if ($checkin && $checkout) {
       $ids = $this->get_available_property_ids($checkin, $checkout);
 
+      if (current_user_can('manage_options') && isset($_GET['hcn_debug']) && $_GET['hcn_debug'] == '1') {
+      echo '<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccc;padding:10px;margin:10px 0;">';
+      echo "Matched IDs (first 20): " . implode(',', array_slice($ids, 0, 20)) . "\n";
+
+      foreach (array_slice($ids, 0, 10) as $pid) {
+        $p = get_post($pid);
+        if (!$p) {
+          echo "ID {$pid}: get_post() = NULL\n";
+          continue;
+        }
+        echo "ID {$pid}: type={$p->post_type} status={$p->post_status} title=" . $p->post_title . "\n";
+      }
+      echo '</pre>';
+    }
+
       // No matches
       if (empty($ids)) {
         echo '<p>No properties available for those dates.</p>';
@@ -88,35 +103,74 @@ class HavenConnect_Search_Shortcode {
    * - Return property IDs where ALL nights between checkin (inclusive) and checkout (exclusive) are available.
    */
   private function get_available_property_ids(string $checkin, string $checkout): array {
-    // Validate dates
+    global $wpdb;
+
+    $debug = current_user_can('manage_options') && isset($_GET['hcn_debug']) && $_GET['hcn_debug'] == '1';
+
+    $table = $wpdb->prefix . 'hcn_availability';
+
+    // Basic sanity: do we have properties at all?
+    $published = (int) $wpdb->get_var("
+      SELECT COUNT(*) FROM {$wpdb->posts}
+      WHERE post_type = 'hcn_property' AND post_status = 'publish'
+    ");
+
+    // Table exists?
+    $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
+    $row_count = 0;
+    $minmax = null;
+
+    if ($exists === $table) {
+      $row_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+      $minmax = $wpdb->get_row("SELECT MIN(for_date) AS min_date, MAX(for_date) AS max_date FROM {$table}", ARRAY_A);
+    }
+
     $in  = strtotime($checkin);
     $out = strtotime($checkout);
-    if (!$in || !$out || $out <= $in) return [];
+    $nights = ($in && $out && $out > $in) ? (int)(($out - $in) / DAY_IN_SECONDS) : 0;
 
-    // === Adjust THESE to match your table schema ===
-    $table = $this->db->prefix . 'hcn_availability'; // <-- if your table name differs, change this
-    $col_post = 'post_id';
-    $col_date = 'date';
-    $col_avail = 'is_available'; // or 'available' or similar
-    // =============================================
+    if ($debug) {
+      echo '<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccc;padding:10px;margin:10px 0;">';
+      echo "HCN Debug\n";
+      echo "Published properties: {$published}\n";
+      echo "Availability table: {$table}\n";
+      echo "Table exists: " . ($exists === $table ? 'YES' : 'NO') . "\n";
+      echo "Availability rows: {$row_count}\n";
+      if ($minmax) {
+        echo "Min date: {$minmax['min_date']} | Max date: {$minmax['max_date']}\n";
+      }
+      echo "Requested: {$checkin} -> {$checkout} ({$nights} nights)\n";
+      echo '</pre>';
+    }
 
-    // Number of nights
-    $nights = (int)(($out - $in) / DAY_IN_SECONDS);
+    // If table missing or empty, nothing can match
+    if ($exists !== $table || $row_count === 0) return [];
 
-    // We need properties that have "available" rows for EVERY night in range.
-    // This pattern works if table stores one row per property per date.
-    $sql = $this->db->prepare("
-      SELECT {$col_post} AS pid
+    // If bad date range, nothing to do
+    if (!$in || !$out || $out <= $in || $nights <= 0) return [];
+
+    // IMPORTANT: strict match requires a row per night with unavailable=0
+    $sql = $wpdb->prepare("
+      SELECT post_id
       FROM {$table}
-      WHERE {$col_date} >= %s
-        AND {$col_date} < %s
-        AND {$col_avail} = 1
-      GROUP BY {$col_post}
+      WHERE for_date >= %s
+        AND for_date < %s
+        AND unavailable = 0
+      GROUP BY post_id
       HAVING COUNT(*) = %d
-      LIMIT 500
+      LIMIT 1000
     ", gmdate('Y-m-d', $in), gmdate('Y-m-d', $out), $nights);
 
-    $rows = $this->db->get_col($sql);
-    return array_map('intval', $rows ?: []);
+    $ids = $wpdb->get_col($sql);
+
+    if ($debug) {
+      echo '<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccc;padding:10px;margin:10px 0;">';
+      echo "SQL:\n{$sql}\n\n";
+      echo "Last DB error:\n" . ($wpdb->last_error ? $wpdb->last_error : '(none)') . "\n";
+      echo "Matches: " . (is_array($ids) ? count($ids) : 0) . "\n";
+      echo '</pre>';
+    }
+
+    return array_map('intval', $ids ?: []);
   }
 }
