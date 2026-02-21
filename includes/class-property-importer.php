@@ -80,46 +80,38 @@ class HavenConnect_Property_Importer {
         return $this->import_single_property($apiKey, null, $uid, $p);
     }
 
-    /**
-    * Choose the best description record from a "descriptions in all locales" payload.
-    * Prefers en_GB, then en_US, then first item.
-    */
-    private function pick_best_description_record($payload): array {
-    if (!is_array($payload)) return [];
-
-    // Payload shape varies; try common keys first
+    private function hcn_pick_description_record(array $payload): array {
+    // Try common container keys first
     $list = [];
     foreach (['propertyDescriptions','descriptions','items','data'] as $k) {
         if (!empty($payload[$k]) && is_array($payload[$k])) { $list = $payload[$k]; break; }
     }
+    // Or it might already be a list
     if (empty($list) && isset($payload[0]) && is_array($payload[0])) $list = $payload;
     if (empty($list)) return [];
 
+    // Prefer UK English then any English, then first
     $prefer = ['en_GB','en-GB','en_US','en-US','en'];
     foreach ($prefer as $loc) {
         foreach ($list as $row) {
         if (!is_array($row)) continue;
         $rowLoc = (string)($row['locale'] ?? $row['language'] ?? '');
-        if (strcasecmp($rowLoc, $loc) === 0) return $row;
+        if ($rowLoc && strcasecmp($rowLoc, $loc) === 0) return $row;
         }
     }
     return is_array($list[0]) ? $list[0] : [];
     }
 
-    /**
-    * Extract long/short/houseManual from a description record defensively.
-    */
-    private function extract_description_fields(array $row): array {
+    private function hcn_extract_desc_fields(array $row): array {
+    // Be defensive: Hostfully fields can vary by version/account
     $long  = $row['longDescription'] ?? $row['description'] ?? $row['publicDescription'] ?? '';
     $short = $row['shortDescription'] ?? $row['summary'] ?? $row['headline'] ?? '';
-
-    // houseManual is mentioned in Hostfully migration docs
     $manual = $row['houseManual'] ?? '';
 
     return [
-        'long'   => is_string($long)  ? $long  : '',
+        'long'   => is_string($long) ? $long : '',
         'short'  => is_string($short) ? $short : '',
-        'manual' => is_string($manual)? $manual: '',
+        'manual' => is_string($manual) ? $manual : '',
     ];
     }
 
@@ -155,28 +147,36 @@ class HavenConnect_Property_Importer {
         // 1) Upsert post
         $post_id = $this->upsert_post($uid, $data);
 
-        // 1.1) Property Descriptions -> post content / excerpt (v3.2)
+        // 1b) Descriptions -> post content / excerpt
         if (method_exists($this->api, 'get_property_descriptions')) {
         $desc_payload = $this->api->get_property_descriptions($apiKey, $uid);
 
-        // Store all locales as JSON meta (future-proof, doesn't affect frontend speed)
+        // Store full raw payload (future-proof; doesn't affect frontend speed)
         update_post_meta($post_id, 'hcn_property_descriptions', wp_json_encode($desc_payload));
 
-        $best = $this->pick_best_description_record($desc_payload);
-        if (!empty($best)) {
-            $fields = $this->extract_description_fields($best);
+        $best = is_array($desc_payload) ? $this->hcn_pick_description_record($desc_payload) : [];
 
+        if (!empty($best)) {
+            $fields  = $this->hcn_extract_desc_fields($best);
             $content = trim($fields['long']);
             $excerpt = trim($fields['short']);
 
-            // Keep HTML if Hostfully provides it; sanitize for WP
             $update = ['ID' => $post_id];
-            if ($content !== '') $update['post_content'] = wp_kses_post($content);
-            if ($excerpt !== '') $update['post_excerpt'] = wp_strip_all_tags($excerpt);
+
+            if ($content !== '') {
+            // keep basic HTML
+            $update['post_content'] = wp_kses_post($content);
+            }
+            if ($excerpt !== '') {
+            // excerpt should be plain text
+            $update['post_excerpt'] = wp_strip_all_tags($excerpt);
+            }
 
             if (count($update) > 1) {
             wp_update_post($update);
             $this->logger->log("Descriptions: updated content/excerpt for {$uid}.");
+            } else {
+            $this->logger->log("Descriptions: record found but long/short empty for {$uid}.");
             }
 
             // Optional: store house manual separately if present
