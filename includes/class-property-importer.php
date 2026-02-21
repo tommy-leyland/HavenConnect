@@ -88,6 +88,27 @@ class HavenConnect_Property_Importer {
         $title = $data['name'] ?? ($data['Name'] ?? 'Untitled');
         $this->logger->log("Importing {$title} ({$uid}) …");
 
+        // 0) Fetch full property details (canonical source)
+        $details = $this->api->get_property_details($apiKey, $uid);
+        $details_p = [];
+
+        if (is_array($details)) {
+        // Some APIs wrap the property in a key; be defensive.
+        if (isset($details['property']) && is_array($details['property'])) {
+            $details_p = $details['property'];
+        } else {
+            $details_p = $details;
+        }
+        }
+
+        if (!empty($details_p)) {
+        // Merge: details override list/featured payload
+        $data = array_merge($data, $details_p);
+        $this->logger->log("Property details loaded for {$uid}.");
+        } else {
+        $this->logger->log("Property details missing/empty for {$uid} (continuing with list payload).");
+        }
+
         // 1) Upsert post
         $post_id = $this->upsert_post($uid, $data);
 
