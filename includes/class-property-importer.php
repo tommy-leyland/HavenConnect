@@ -183,7 +183,41 @@ class HavenConnect_Property_Importer {
 
     $this->logger->log("Descriptions: record keys for {$propertyUid}: " . implode(',', array_keys($record)));
 
-    $fields  = $this->extract_description_fields($record);
+    $short   = trim((string)($record['shortSummary'] ?? ''));
+$summary = trim((string)($record['summary'] ?? ''));
+
+// Write ONLY summary into post_content (not the other sections)
+$content = $summary;
+
+// Excerpt
+$excerpt = $short !== '' ? $short : $summary;
+
+// ACF: store the sections separately (NO houseManual)
+if (function_exists('update_field')) {
+  $acf_map = [
+    'property_space'         => 'space',
+    'property_neighbourhood' => 'neighbourhood',
+    'property_access'        => 'access',
+    'property_transit'       => 'transit',
+    'property_interaction'   => 'interaction',
+    'property_notes'         => 'notes',
+  ];
+
+  foreach ($acf_map as $acf_key => $hostfully_key) {
+    $val = trim((string)($record[$hostfully_key] ?? ''));
+    if ($val !== '') {
+      update_field($acf_key, wp_kses_post($val), $post_id);
+    }
+  }
+
+  // optional: if you created this field, fill it with just summary too:
+  // update_field('property_long_description', wp_kses_post($summary), $post_id);
+}
+    
+
+    if (!empty(trim($combined))) {
+    update_field('property_long_description', $combined, $post_id);
+    }
     $content = trim((string)$fields['long']);
     $excerpt = trim((string)$fields['short']);
 

@@ -15,7 +15,7 @@ add_action('init', function () {
     'menu_icon'    => 'dashicons-admin-home',
 
     // ✅ Add 'excerpt' so WP shows/stores it properly
-    'supports'     => ['title', 'editor', 'excerpt', 'thumbnail'],
+    'supports'     => ['title', 'editor', 'excerpt', 'thumbnail','custom-fields'],
   ]);
 
   // IMPORTANT:
