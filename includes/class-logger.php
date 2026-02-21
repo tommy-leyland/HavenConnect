@@ -1,64 +1,108 @@
 <?php
-
 if (!defined('ABSPATH')) exit;
 
 /**
- * HavenConnect_Logger
+ * HavenConnect_Logger (append-safe, multi-request)
  *
- * Simple line-based logger that stores output in a transient so the admin UI
- * can display the most recent run results. Buffer messages with ->log(), then
- * call ->save() when the process completes.
+ * - Persists logs to: wp-uploads/havenconnect/hcn_log.txt
+ * - save() APPENDS by default (critical for AJAX multi-request runs)
+ * - clear() truncates once at the beginning of a job
+ * - get() returns the whole file for admin display
+ * - Uses flock() to avoid concurrent write corruption
  */
 class HavenConnect_Logger {
 
-    /** @var string Transient key to store the last log output */
-    private $transient_key;
+    /** @var string Absolute path to log file */
+    private $file;
 
-    /** @var array In-memory buffer of log lines */
+    /** @var array<string> In-memory buffer for current request */
     private $buffer = [];
 
-    /** @var int Lifetime of transient in seconds (default: 1 hour) */
-    private $ttl = 3600;
+    /** @var string Log file basename */
+    private $basename;
 
-    public function __construct(string $transient_key = 'havenconnect_log', int $ttl = 3600) {
-        $this->transient_key = $transient_key;
-        $this->ttl = max(60, (int) $ttl);
+    public function __construct(string $basename = 'hcn_log') {
+        $this->basename = preg_replace('/[^a-z0-9_\-]/i', '_', $basename);
+
+        $upload = wp_upload_dir();
+        $dir    = trailingslashit($upload['basedir']) . 'havenconnect';
+        if (!is_dir($dir)) {
+            wp_mkdir_p($dir);
+        }
+
+        $this->file = trailingslashit($dir) . $this->basename . '.txt';
+
+        // Ensure the file exists
+        if (!file_exists($this->file)) {
+            @touch($this->file);
+        }
     }
 
     /**
-     * Append a message to the in-memory buffer with a timestamp prefix.
-     * @param string $message
-     * @return void
+     * Add a one-line message with timestamp to the in-memory buffer.
      */
     public function log(string $message): void {
-        $ts = gmdate('Y-m-d H:i:s');
-        $this->buffer[] = "[$ts] $message";
+        $line = sprintf("[%s] %s", gmdate('Y-m-d H:i:s'), $message);
+        $this->buffer[] = $line;
     }
 
     /**
-     * Clear the existing buffer and remove any previously saved log transient.
-     * @return void
+     * Save current buffer to disk.
+     * - By default, we APPEND so AJAX “single” requests add lines instead of overwriting.
+     * - Pass $append=false ONLY when you want to overwrite the entire log (rare).
+     */
+    public function save(bool $append = true): void {
+        if (empty($this->buffer)) return;
+
+        $mode = $append ? 'a' : 'w';
+        $fp   = @fopen($this->file, $mode);
+        if ($fp) {
+            // Acquire an exclusive lock, write, then release
+            if (flock($fp, LOCK_EX)) {
+                fwrite($fp, implode(PHP_EOL, $this->buffer) . PHP_EOL);
+                fflush($fp);
+                flock($fp, LOCK_UN);
+            }
+            fclose($fp);
+        }
+
+        // Clear per-request buffer after writing
+        $this->buffer = [];
+    }
+
+    /**
+     * Truncate the log file + clear the in-memory buffer.
+     * Call this ONCE at the start of a job (AJAX “start” handler already does this).
      */
     public function clear(): void {
+        // Clear current buffer
         $this->buffer = [];
-        delete_transient($this->transient_key);
+
+        // Truncate on disk
+        $fp = @fopen($this->file, 'w');
+        if ($fp) {
+            if (flock($fp, LOCK_EX)) {
+                // write nothing; truncate to zero
+                fflush($fp);
+                flock($fp, LOCK_UN);
+            }
+            fclose($fp);
+        }
     }
 
     /**
-     * Save current buffer to the transient (overwrites previous).
-     * @return void
-     */
-    public function save(): void {
-        $text = implode("\n", $this->buffer);
-        set_transient($this->transient_key, $text, $this->ttl);
-    }
-
-    /**
-     * Retrieve the last saved log text (or empty string).
-     * @return string
+     * Return the entire log as a string (for admin page viewer).
      */
     public function get(): string {
-        $text = get_transient($this->transient_key);
-        return is_string($text) ? $text : '';
+        if (!file_exists($this->file)) return '';
+        $contents = @file_get_contents($this->file);
+        return is_string($contents) ? $contents : '';
+    }
+
+    /**
+     * Retrieve the path in case you want to expose/download it.
+     */
+    public function path(): string {
+        return $this->file;
     }
 }

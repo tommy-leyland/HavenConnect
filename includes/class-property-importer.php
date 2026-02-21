@@ -2,15 +2,15 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * HavenConnect_Property_Importer
+ * HavenConnect_Property_Importer (FINAL, with Featured photo fallback and tag fallback)
  *
  * Imports:
- *  - Featured list
- *  - Tags
- *  - Photos
+ *  - Featured/All property list (auto-fallback)
+ *  - Tags (non-fatal if endpoint unavailable; fallback from address/types)
+ *  - Photos (REST v3.2 -> fallback to Featured payload/pictureLink)
  *  - Meta
- *  - Amenities (NEW)
- *  - Availability (OAuth pending)
+ *  - Amenities → Features taxonomy
+ *  - Availability (v3.2 property-calendar)
  */
 class HavenConnect_Property_Importer {
 
@@ -27,16 +27,30 @@ class HavenConnect_Property_Importer {
     }
 
     /**
-     * MAIN IMPORT LOOP (Used by old button & Cron)
+     * MAIN IMPORT (old button / cron)
+     * - Auto-fallback: Featured -> All Properties
      */
     public function run_import($apiKey, $agencyUid) {
 
-        $this->logger->clear();
+        if (method_exists($this->logger, 'clear')) {
+            $this->logger->clear();
+        }
         $this->logger->log("Import started…");
 
-        $props = $this->api->get_featured_list($apiKey, $agencyUid);
-        $count = count($props);
-        $this->logger->log("Found $count Featured properties.");
+        // 1) Try Featured v3.2
+        $props  = $this->api->get_featured_list($apiKey, $agencyUid);
+        $source = 'featured';
+
+        // 2) Fallback to "all properties (v3.2)"
+        if (!is_array($props) || empty($props)) {
+            if (method_exists($this->api, 'get_properties_by_agency')) {
+                $props  = $this->api->get_properties_by_agency($apiKey, $agencyUid);
+                $source = 'all';
+            }
+        }
+
+        $count = is_array($props) ? count($props) : 0;
+        $this->logger->log("Found {$count} properties via {$source}.");
 
         foreach ($props as $p) {
             $uid = $p['uid'] ?? ($p['UID'] ?? null);
@@ -44,16 +58,18 @@ class HavenConnect_Property_Importer {
                 $this->logger->log("Skipped property without UID.");
                 continue;
             }
-
             $this->import_single_property($apiKey, $agencyUid, $uid, $p);
         }
 
         $this->logger->log("Import complete.");
+        if (method_exists($this->logger, 'save')) {
+            $this->logger->save();
+        }
         return true;
     }
 
     /**
-     * AJAX importer calls this — but it is also shared by run_import()
+     * AJAX importer calls this
      */
     public function import_property_from_featured(string $apiKey, array $p) {
         $uid = $p['uid'] ?? ($p['UID'] ?? null);
@@ -61,7 +77,6 @@ class HavenConnect_Property_Importer {
             $this->logger->log("Single import: missing UID.");
             return 0;
         }
-
         return $this->import_single_property($apiKey, null, $uid, $p);
     }
 
@@ -70,62 +85,104 @@ class HavenConnect_Property_Importer {
      */
     private function import_single_property(string $apiKey, ?string $agencyUid, string $uid, array $data) {
 
-        // Upsert post
+        $title = $data['name'] ?? ($data['Name'] ?? 'Untitled');
+        $this->logger->log("Importing {$title} ({$uid}) …");
+
+        // 1) Upsert post
         $post_id = $this->upsert_post($uid, $data);
 
-        // Tags
+        // 2) Tags (non-fatal if endpoint unavailable)
         $tags_raw = $this->api->get_property_tags($apiKey, $uid);
         $tags     = $this->normalize_tags($tags_raw);
-        $this->tax->apply_taxonomies($post_id, $tags);
 
-        // Photos
-        $photo_payload = $this->api->get_property_photos($apiKey, $uid);
-        $this->photos->sync_from_payload($post_id, $photo_payload);
-        delete_post_thumbnail($post_id);
-
-        // Meta
-        $this->update_meta($post_id, $data);
-
-        // Amenities → Features taxonomy
-        $this->sync_property_amenities($apiKey, $uid, $post_id);
-
-        // Availability (OAuth pending)
-        if (isset($GLOBALS['havenconnect']['availability'])) {
-            try {
-                if ($agencyUid) {
-                    $GLOBALS['havenconnect']['availability']->sync_property_calendar($apiKey, $uid);
-                }
-            } catch (\Throwable $e) {
-                $this->logger->log("Availability error for $uid: " . $e->getMessage());
+        // Fallback: derive Location/Group from address + types when the tags API gives nothing
+        if (empty($tags)) {
+            $fallback = $this->build_fallback_tags_from_property($data);
+            if (!empty($fallback)) {
+                $this->logger->log("Tags: using fallback (address/types) for {$uid}: " . implode(', ', $fallback));
+                $tags = $fallback;
+            } else {
+                $this->logger->log("Tags: none for post {$post_id} and no fallback found.");
             }
         }
 
+        $this->tax->apply_taxonomies($post_id, $tags);
+
+        // 3) Photos (REST -> fallback to Featured payload / pictureLink)
+        $photo_payload = $this->api->get_property_photos($apiKey, $uid);
+
+        if (empty($photo_payload)) {
+            // Featured payload sometimes includes a 'photos' array
+            if (!empty($data['photos']) && is_array($data['photos'])) {
+                $photo_payload = $data['photos'];
+                $this->logger->log("Photos: using Featured payload for {$uid} (" . count($photo_payload) . " entries).");
+            }
+            // Or at least a cover 'pictureLink' URL
+            else if (!empty($data['pictureLink']) && is_string($data['pictureLink'])) {
+                $photo_payload = [[
+                    'uid'                => $uid . '_cover',
+                    'displayOrder'       => 0,
+                    'largeScaleImageUrl' => $data['pictureLink'],
+                ]];
+                $this->logger->log("Photos: using pictureLink fallback for {$uid}.");
+            }
+        }
+
+        $this->photos->sync_from_payload($post_id, (array)$photo_payload);
+        // Always ensure no WP attachment thumbnail remains (your Photo_Sync does this too)
+        delete_post_thumbnail($post_id);
+
+        // 4) Meta
+        $this->update_meta($post_id, $data);
+
+        // 5) Amenities (Features taxonomy)
+        $this->sync_property_amenities($apiKey, $uid, $post_id);
+
+        // 6) Availability (v3.2 property-calendar)
+        if (isset($GLOBALS['havenconnect']['availability'])) {
+            try {
+                // Choose a window; your Availability Importer now clamps to 30 days for tests
+                $from = gmdate('Y-m-d');
+                $to   = gmdate('Y-m-d', strtotime('+365 days'));
+
+                $GLOBALS['havenconnect']['availability']->sync_property_calendar(
+                    $apiKey,
+                    $uid,
+                    $post_id,
+                    $from,
+                    $to
+                );
+            } catch (\Throwable $e) {
+                $this->logger->log("Availability error for {$uid}: " . $e->getMessage());
+            }
+        }
+
+        $this->logger->log("Imported {$title} (post_id={$post_id})");
+        if (method_exists($this->logger, 'save')) {
+            $this->logger->save();
+        }
         return $post_id;
     }
 
     /** -----------------------------------------------------------
-     *  AMENITIES → Features taxonomy
+     *  AMENITIES → Features taxonomy (per property)
      * ----------------------------------------------------------- */
-
     private function amenity_display_name(string $code): string {
-        // HAS_STOVE → Stove
-        // IS_LAKEFRONT → Lakefront
+        // HAS_STOVE -> Stove, IS_LAKEFRONT -> Lakefront
         $clean = preg_replace('/^(HAS_|IS_)/', '', strtoupper($code));
         $clean = str_replace('_', ' ', $clean);
         return ucwords(strtolower($clean));
     }
 
     private function sync_property_amenities(string $apiKey, string $propertyUid, int $post_id): void {
-
         $rows = $this->api->get_property_amenities($apiKey, $propertyUid);
 
         if (empty($rows)) {
-            $this->logger->log("Amenities: none for $propertyUid");
+            $this->logger->log("Amenities: none for {$propertyUid}");
             return;
         }
 
         $terms = [];
-
         foreach ($rows as $row) {
             $code = isset($row['amenity']) ? trim($row['amenity']) : '';
             if ($code === '') continue;
@@ -136,7 +193,7 @@ class HavenConnect_Property_Importer {
             if (!term_exists($label, 'hcn_feature')) {
                 $res = wp_insert_term($label, 'hcn_feature');
                 if (!is_wp_error($res)) {
-                    $this->logger->log("Amenity term added: $label");
+                    $this->logger->log("Amenity term added: {$label}");
                 }
             }
 
@@ -150,8 +207,38 @@ class HavenConnect_Property_Importer {
     }
 
     /** -----------------------------------------------------------
-     * Existing methods (upsert_post, normalize_tags, update_meta)
+     * Helpers: fallback tags, upsert, tags normalize, meta
      * ----------------------------------------------------------- */
+
+    /**
+     * Build fallback tags when Hostfully returns none.
+     * Uses address + property types so Location/Group taxonomies still populate.
+     *
+     * Our taxonomy handler maps "LOC:*" to 'property_loc' and "GROUP:*" to 'property_group'.
+     */
+    private function build_fallback_tags_from_property(array $p): array
+    {
+        $tags = [];
+
+        // Address-based locations
+        $addr    = (array)($p['address'] ?? []);
+        $city    = trim((string)($addr['city'] ?? ''));
+        $state   = trim((string)($addr['state'] ?? ''));
+        $country = trim((string)($addr['countryCode'] ?? ''));
+
+        if ($city    !== '') $tags[] = 'LOC:' . $city;
+        if ($state   !== '') $tags[] = 'LOC:' . $state;
+        if ($country !== '') $tags[] = 'LOC:' . $country;
+
+        // Group from types
+        $listingType  = trim((string)($p['listingType']  ?? ''));
+        $propertyType = trim((string)($p['propertyType'] ?? ''));
+
+        if ($listingType  !== '') $tags[] = 'GROUP:' . $listingType;
+        if ($propertyType !== '') $tags[] = 'GROUP:' . $propertyType;
+
+        return array_values(array_unique($tags));
+    }
 
     private function upsert_post(string $uid, array $data): int {
 
@@ -178,7 +265,7 @@ class HavenConnect_Property_Importer {
         $new_id = $post_id ? wp_update_post($postarr, true) : wp_insert_post($postarr, true);
 
         if (is_wp_error($new_id)) {
-            $this->logger->log("Post error for UID $uid: ".$new_id->get_error_message());
+            $this->logger->log("Post error for UID {$uid}: " . $new_id->get_error_message());
             return 0;
         }
 
@@ -217,23 +304,23 @@ class HavenConnect_Property_Importer {
         $to_float = fn($v) => is_numeric($v) ? (float)$v : null;
 
         $map = [
-            'bedrooms'      => $to_int($p['bedrooms'] ?? null),
-            'bathrooms'     => $to_float($p['bathrooms'] ?? null),
-            'beds'          => $to_int($p['beds'] ?? null),
-            'sleeps'        => $to_int($avail['maxGuests'] ?? ($p['maxGuests'] ?? null)),
-            'address_line1' => $addr['address']     ?? null,
-            'address_line2' => $addr['address2']    ?? null,
-            'city'          => $addr['city']        ?? null,
-            'state'         => $addr['state']       ?? null,
-            'postcode'      => $addr['zipCode']     ?? null,
-            'country_code'  => $addr['countryCode'] ?? null,
-            'latitude'      => $to_float($addr['latitude']  ?? null),
-            'longitude'     => $to_float($addr['longitude'] ?? null),
-            'property_type' => $p['propertyType']   ?? null,
-            'listing_type'  => $p['listingType']    ?? null,
-            'room_type'     => $p['roomType']       ?? null,
-            'area_size'     => $to_float($area['size']     ?? null),
-            'area_unit'     => $area['unitType']           ?? null,
+            'bedrooms'       => $to_int($p['bedrooms'] ?? null),
+            'bathrooms'      => $to_float($p['bathrooms'] ?? null),
+            'beds'           => $to_int($p['beds'] ?? null),
+            'sleeps'         => $to_int($avail['maxGuests'] ?? ($p['maxGuests'] ?? null)),
+            'address_line1'  => $addr['address']     ?? null,
+            'address_line2'  => $addr['address2']    ?? null,
+            'city'           => $addr['city']        ?? null,
+            'state'          => $addr['state']       ?? null,
+            'postcode'       => $addr['zipCode']     ?? null,
+            'country_code'   => $addr['countryCode'] ?? null,
+            'latitude'       => $to_float($addr['latitude']  ?? null),
+            'longitude'      => $to_float($addr['longitude'] ?? null),
+            'property_type'  => $p['propertyType']   ?? null,
+            'listing_type'   => $p['listingType']    ?? null,
+            'room_type'      => $p['roomType']       ?? null,
+            'area_size'      => $to_float($area['size']     ?? null),
+            'area_unit'      => $area['unitType']           ?? null,
             'license_number' => $p['rentalLicenseNumber'] ?? null,
             'license_expiry' => $p['rentalLicenseExpirationDate'] ?? null,
         ];

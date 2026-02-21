@@ -25,7 +25,7 @@ function hcn_require($rel) {
  * Includes (order matters: core, CPT, utilities, importers, admin)
  */
 hcn_require('helpers.php');
-hcn_require('register-post-types.php');          // <-- must exist and register CPT 'hcn_property'
+hcn_require('register-post-types.php');          // must exist and register CPT 'hcn_property'
 hcn_require('class-logger.php');
 hcn_require('class-api-client.php');
 hcn_require('class-taxonomy-handler.php');
@@ -36,7 +36,7 @@ hcn_require('class-property-importer.php');
 hcn_require('class-admin-metabox.php');
 hcn_require('class-admin.php');
 hcn_require('admin-save-hooks.php');
-/* hcn_require('class-import-cron.php'); */
+// hcn_require('class-import-cron.php'); // optional later
 
 /**
  * Create availability table on activation
@@ -60,24 +60,25 @@ add_action('admin_init', function () {
     }
 });
 
-
 /**
  * BOOTSTRAP
- * Instantiate taxonomy handler BEFORE init, so its add_action('init', ...) hooks bind
- * in time for the current request. Then complete the rest on init.
+ *
+ * IMPORTANT:
+ *  - Build ALL singletons (logger, taxonomy handler, api, photos, importer, admin) inside `init`
+ *    so the logger session used by taxonomy registration and the importer/AJAX is the SAME one.
+ *  - Use priority 5 (earlier than default 10) so these singletons exist before the AJAX
+ *    file registers its handlers on `init` (default priority).
  */
+add_action('init', function () {
 
-// --- Core singletons that must exist early
-$logger = new HavenConnect_Logger('hcn_log');
-$tax    = new HavenConnect_Taxonomy_Handler($logger); // <-- moved OUT of the init closure
+    // --- Core singletons (build once, shared everywhere)
+    $logger = new HavenConnect_Logger('hcn_log');
+    $tax    = new HavenConnect_Taxonomy_Handler($logger);
 
-add_action('init', function () use ($logger, $tax) {
-
-    // --- Other singletons that can be created at init
     $api    = new HavenConnect_Api_Client($logger);
     $photos = new HavenConnect_Photo_Sync($logger);
 
-    // Availability importer (OAuth still pending, safe to construct)
+    // Availability importer (OAuth pending)
     $availability = new HavenConnect_Availability_Importer($api, $logger);
 
     // Property importer & Admin
@@ -99,8 +100,14 @@ add_action('init', function () use ($logger, $tax) {
     if (post_type_exists($cpt)) {
         add_post_type_support($cpt, 'custom-fields');
     }
-}, 10);
 
+}, 5);
+
+/**
+ * Load AJAX importer AFTER bootstrap so handlers see the real singletons.
+ * The AJAX file itself registers handlers on init (default 10), which now occurs
+ * after the above bootstrap (priority 5).
+ */
 hcn_require('class-import-ajax.php');
 
 /**
