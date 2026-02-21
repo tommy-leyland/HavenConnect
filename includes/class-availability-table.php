@@ -26,7 +26,7 @@ class HavenConnect_Availability_Table {
       currency VARCHAR(8) NULL,
 
       unavailable TINYINT(1) NOT NULL DEFAULT 0,
-      reason VARCHAR(255) NULL,
+      
 
       checkin TINYINT(1) NULL,
       checkout TINYINT(1) NULL,
@@ -34,7 +34,7 @@ class HavenConnect_Availability_Table {
       min_stay INT NULL,
       max_stay INT NULL,
 
-      notes TEXT NULL,
+      
       updated_at DATETIME NULL,
 
       PRIMARY KEY (id),
@@ -68,7 +68,7 @@ class HavenConnect_Availability_Table {
 
     // 3) Drop legacy columns (dbDelta does NOT drop)
     $drop = [];
-    foreach (['date','is_available','closed_to_arrival','closed_to_departure'] as $legacy) {
+    foreach (['date','is_available','closed_to_arrival','closed_to_departure','reason','notes'] as $legacy) {
       if (in_array($legacy, $names, true)) {
         $drop[] = "DROP COLUMN `{$legacy}`";
       }

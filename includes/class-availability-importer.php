@@ -166,12 +166,10 @@ class HavenConnect_Availability_Importer {
             $currency  = $pricing['currency'] ?? null;
 
             $unavail   = !empty($avail['unavailable']) ? 1 : 0;
-            $reason    = $avail['unavailabilityReason'] ?? null;
             $ci        = isset($avail['availableForCheckIn'])  ? (int)!empty($avail['availableForCheckIn'])  : null;
             $co        = isset($avail['availableForCheckOut']) ? (int)!empty($avail['availableForCheckOut']) : null;
             $minStay   = isset($avail['minimumStayLength']) ? (int)$avail['minimumStayLength'] : null;
             $maxStay   = isset($avail['maximumStayLength']) ? (int)$avail['maximumStayLength'] : null;
-            $notes     = $avail['notes'] ?? null;
 
             $wpdb->insert(
                 $this->table,
@@ -182,12 +180,10 @@ class HavenConnect_Availability_Importer {
                     'price'          => $price,
                     'currency'       => $currency,
                     'unavailable'    => $unavail,
-                    'reason'         => $reason,
                     'checkin'        => $ci,
                     'checkout'       => $co,
                     'min_stay'       => $minStay,
                     'max_stay'       => $maxStay,
-                    'notes'          => $notes,
                     'updated_at'     => gmdate('Y-m-d H:i:s'),
                 ],
                 [
@@ -223,12 +219,10 @@ class HavenConnect_Availability_Importer {
                 'price'       => isset($pricing['value']) ? (float)$pricing['value'] : null,
                 'currency'    => $pricing['currency'] ?? null,
                 'unavailable' => !empty($avail['unavailable']),
-                'reason'      => $avail['unavailabilityReason'] ?? null,
                 'checkin'     => !empty($avail['availableForCheckIn']),
                 'checkout'    => !empty($avail['availableForCheckOut']),
                 'min_stay'    => isset($avail['minimumStayLength']) ? (int)$avail['minimumStayLength'] : null,
                 'max_stay'    => isset($avail['maximumStayLength']) ? (int)$avail['maximumStayLength'] : null,
-                'notes'       => $avail['notes'] ?? null,
             ];
         }
 
