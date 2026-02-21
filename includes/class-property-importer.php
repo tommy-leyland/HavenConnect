@@ -230,14 +230,8 @@ class HavenConnect_Property_Importer {
     ];
 
     foreach ($meta_map as $meta_key => $hostfully_key) {
-        $val = $record[$hostfully_key] ?? '';
-        $val = $norm($val);
-
-        if ($val !== '' && strtolower($val) !== 'null') {
-        update_post_meta($post_id, $meta_key, $val);
-        } else {
-        delete_post_meta($post_id, $meta_key);
-        }
+        $val = $norm($record[$hostfully_key] ?? '');
+        $this->set_meta_unless_locked($post_id, $meta_key, $val);
     }
 
     $this->logger->log("Descriptions: {$propertyUid} summary_len=" . strlen($summary) . " short_len=" . strlen($short));
@@ -247,10 +241,8 @@ class HavenConnect_Property_Importer {
 
     if ($content !== '') {
         $update['post_content'] = wp_kses_post(wpautop($content));
-    } else {
-        // If you prefer to keep old content when summary is empty, remove this else block.
-        $update['post_content'] = '';
     }
+    // else: leave existing post_content untouched
 
     if ($excerpt !== '') {
         $update['post_excerpt'] = wp_strip_all_tags($excerpt);
@@ -301,38 +293,6 @@ class HavenConnect_Property_Importer {
 
     return is_array($list[0]) ? $list[0] : [];
   }
-
-  /**
-   * Very defensive extraction for long/short descriptions.
-   * This is why excerpt can work while content doesn't.
-   */
-   private function extract_description_fields(array $row): array {
-
-    // Hostfully payload (what you're actually receiving) uses:
-    // - summary
-    // - shortSummary
-    // - houseManual (optional)
-    // plus section keys like space/neighbourhood/notes etc.
-
-    $long  = $row['summary'] ?? $row['longDescription'] ?? $row['description'] ?? $row['publicDescription'] ?? '';
-    $short = $row['shortSummary'] ?? $row['shortDescription'] ?? $row['summary'] ?? $row['headline'] ?? '';
-
-    // We are NOT importing houseManual into public content.
-    $manual = $row['houseManual'] ?? '';
-
-    // Hostfully sometimes gives literal "nn" instead of real line breaks.
-    $normalize = function($v) {
-        if (!is_string($v)) return '';
-        $v = str_replace("nn", "\n\n", $v);
-        return trim($v);
-    };
-
-    return [
-        'long'   => $normalize($long),
-        'short'  => $normalize($short),
-        'manual' => $normalize($manual),
-    ];
-    }
 
   /**
    * Upsert the CPT post by _havenconnect_uid
