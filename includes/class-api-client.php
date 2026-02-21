@@ -280,6 +280,27 @@ class HavenConnect_Api_Client {
     }
 
     /**
+    * Property descriptions (v3.2)
+    * GET /api/v3.2/property-descriptions?propertyUid={propertyUid}
+    */
+    public function get_property_descriptions(string $apiKey, string $propertyUid): array {
+    $endpoints = [
+        "https://platform.hostfully.com/api/v3.2/property-descriptions" => [
+        "X-HOSTFULLY-APIKEY" => $apiKey
+        ],
+        "https://sandbox.hostfully.com/api/v3.2/property-descriptions" => [
+        "X-HOSTFULLY-APIKEY" => $apiKey
+        ],
+    ];
+
+    $parsed = $this->request($endpoints, [
+        'propertyUid' => $propertyUid,
+    ]);
+
+    return is_array($parsed) ? $parsed : [];
+    }
+
+    /**
      * Amenities (v3.2)
      */
     public function get_property_amenities(string $apiKey, string $propertyUid): array {
