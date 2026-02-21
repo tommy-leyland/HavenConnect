@@ -46,19 +46,11 @@ register_activation_hook(HCN_FILE, ['HavenConnect_Availability_Table', 'install_
 /**
  * Safety fallback: create/repair table if missing (admins only)
  */
-add_action('admin_init', function () {
-    if (!current_user_can('manage_options')) return;
-
-    global $wpdb;
-    $table = $wpdb->prefix . 'hcn_availability';
-
-    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
-        if (class_exists('HavenConnect_Availability_Table')) {
-            error_log('[HavenConnect] availability table missing; installing now.');
-            HavenConnect_Availability_Table::install_table();
-        }
-    }
-});
+add_action('init', function () {
+  if (class_exists('HavenConnect_Availability_Table')) {
+    HavenConnect_Availability_Table::install_or_upgrade();
+  }
+}, 5);
 
 /**
  * BOOTSTRAP
