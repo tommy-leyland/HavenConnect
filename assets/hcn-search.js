@@ -9,6 +9,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const statusEl = form.parentElement.querySelector(".hcn-search-status");
   const resultsWrap = form.parentElement.querySelector(".hcn-results-wrap");
 
+  if (!resultsWrap) return;
+
   async function runSearch({ pushUrl = true } = {}) {
     const fd = new FormData(form);
 

@@ -106,9 +106,9 @@ class HavenConnect_Search_Shortcode {
     return ob_get_clean();
   }
 
-  public function render($atts = []) {
+    public function render($atts = []) {
     $atts = shortcode_atts([
-      'per_page' => 12,
+        'per_page' => 12,
     ], $atts);
 
     $checkin   = isset($_GET['checkin']) ? sanitize_text_field($_GET['checkin']) : '';
@@ -117,8 +117,13 @@ class HavenConnect_Search_Shortcode {
     $bedrooms  = isset($_GET['bedrooms']) ? max(0, (int) $_GET['bedrooms']) : 0;
     $bathrooms = isset($_GET['bathrooms']) ? max(0, (float) $_GET['bathrooms']) : 0;
 
-    // Enqueue JS (see next step)
-    wp_enqueue_script('hcn-search', plugins_url('assets/hcn-search.js', dirname(__FILE__)), [], '1.0.0', true);
+    // ✅ correct script URL (plugin root)
+    if (defined('HCN_PLUGIN_URL')) {
+        wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.0.2', true);
+    } else {
+        // fallback if constant not defined
+        wp_enqueue_script('hcn-search', plugin_dir_url(__DIR__) . 'assets/hcn-search.js', [], '1.0.2', true);
+    }
 
     $nonce = wp_create_nonce('hcn_search_nonce');
     $ajax  = admin_url('admin-ajax.php');
@@ -126,51 +131,53 @@ class HavenConnect_Search_Shortcode {
     ob_start(); ?>
 
     <form class="hcn-search-form"
-          data-ajax="<?php echo esc_attr($ajax); ?>"
-          data-nonce="<?php echo esc_attr($nonce); ?>"
-          data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>"
-          style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;">
+            data-ajax="<?php echo esc_attr($ajax); ?>"
+            data-nonce="<?php echo esc_attr($nonce); ?>"
+            data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>"
+            style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;">
 
-      <div>
+        <div>
         <label>Check in</label><br>
         <input type="date" name="checkin" value="<?php echo esc_attr($checkin); ?>">
-      </div>
+        </div>
 
-      <div>
+        <div>
         <label>Check out</label><br>
         <input type="date" name="checkout" value="<?php echo esc_attr($checkout); ?>">
-      </div>
+        </div>
 
-      <div>
+        <div>
         <label>Guests (min)</label><br>
         <input type="number" name="guests" min="0" step="1" value="<?php echo esc_attr($guests); ?>" style="width:110px;">
-      </div>
+        </div>
 
-      <div>
+        <div>
         <label>Bedrooms (min)</label><br>
         <input type="number" name="bedrooms" min="0" step="1" value="<?php echo esc_attr($bedrooms); ?>" style="width:110px;">
-      </div>
+        </div>
 
-      <div>
+        <div>
         <label>Bathrooms (min)</label><br>
         <input type="number" name="bathrooms" min="0" step="0.5" value="<?php echo esc_attr($bathrooms); ?>" style="width:110px;">
-      </div>
+        </div>
 
-      <button type="submit">Search</button>
+        <button type="submit">Search</button>
     </form>
 
     <div class="hcn-search-status" style="margin-top:10px;"></div>
+
     <div class="hcn-results-wrap" style="margin-top:10px;">
-      <?php
-        // Initial render (optional): show results if URL has params
-        if ($checkin && $checkout) {
-          echo $this->build_results_html($checkin, $checkout, $guests, $bedrooms, $bathrooms, (int)$atts['per_page']);
-        }
-      ?>
+        <?php
+        // ✅ Option A: ALWAYS show results (latest by default)
+        echo $this->build_results_html(
+            $checkin, $checkout, $guests, $bedrooms, $bathrooms, (int)$atts['per_page']
+        );
+        ?>
     </div>
 
-    <?php return ob_get_clean();
-  }
+    <?php
+    return ob_get_clean();
+    }
 
   /**
    * IMPORTANT:
