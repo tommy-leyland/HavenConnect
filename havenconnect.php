@@ -36,6 +36,8 @@ hcn_require('class-property-importer.php');
 hcn_require('class-admin-metabox.php');
 hcn_require('class-admin.php');
 hcn_require('admin-save-hooks.php');
+require_once __DIR__ . '/includes/class-search-shortcode.php';
+new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
 // hcn_require('class-import-cron.php'); // optional later
 
 /**

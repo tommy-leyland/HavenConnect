@@ -88,24 +88,70 @@ class HavenConnect_Api_Client {
      */
     public function get_properties_by_agency(string $apiKey, string $agencyUid): array {
 
-        $endpoints = [
-            "https://platform.hostfully.com/api/v3.2/properties" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-            "https://api.hostfully.com/api/v3.2/properties" => [
-                "X-HOSTFULLY-APIKEY" => $apiKey
-            ],
-        ];
+    $endpoints = [
+        "https://platform.hostfully.com/api/v3.2/properties" => [
+        "X-HOSTFULLY-APIKEY" => $apiKey
+        ],
+        // keep your existing fallback if you want:
+        "https://api.hostfully.com/api/v3.2/properties" => [
+        "X-HOSTFULLY-APIKEY" => $apiKey
+        ],
+    ];
 
-        $params = ['agencyUid' => $agencyUid];
+    $all = [];
+    $cursor = null;
+    $limit  = 100; // Hostfully commonly caps _limit at 100 on cursor pagination :contentReference[oaicite:2]{index=2}
+
+    for ($guard = 0; $guard < 50; $guard++) { // guard prevents infinite loops
+        $params = [
+        'agencyUid' => $agencyUid,
+        '_limit'    => $limit,
+        ];
+        if ($cursor) {
+        $params['_cursor'] = $cursor;
+        }
 
         $parsed = $this->request($endpoints, $params);
 
-        if (!is_array($parsed) || empty($parsed['properties'])) {
-            return [];
+        // Properties list
+        $props = [];
+        if (is_array($parsed) && !empty($parsed['properties']) && is_array($parsed['properties'])) {
+        $props = $parsed['properties'];
+        $all   = array_merge($all, $props);
+        } else {
+        break;
         }
 
-        return $parsed['properties'];
+        // Try to discover next cursor (different endpoints sometimes place it differently)
+        $next = null;
+        if (is_array($parsed)) {
+        $next =
+            $parsed['_metadata']['nextCursor'] ??     // common pattern
+            $parsed['_metadata']['next_cursor'] ??    // alternative
+            $parsed['nextCursor'] ??                  // alternative
+            $parsed['next_cursor'] ??                 // alternative
+            null;
+        }
+
+        // If no cursor was provided by API, we assume we're done.
+        if (!$next) {
+        // Also break if we got less than limit (last page)
+        if (count($props) < $limit) break;
+        break;
+        }
+
+        // Prevent no-progress loops
+        if ($next === $cursor) break;
+
+        $cursor = $next;
+    }
+
+    // Optional: log how many we got (helps confirm it’s fixed)
+    if ($this->logger) {
+        $this->logger->log("Properties: fetched " . count($all) . " for agency {$agencyUid}");
+    }
+
+    return $all;
     }
 
     /**
