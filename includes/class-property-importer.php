@@ -452,7 +452,7 @@ class HavenConnect_Property_Importer {
 
     foreach ($map as $key => $value) {
       if ($value !== null && $value !== '' && $value !== []) {
-        update_post_meta($post_id, $key, $value);
+        $this->set_meta_unless_locked($post_id, $key, $value);
       } else {
         delete_post_meta($post_id, $key);
       }
