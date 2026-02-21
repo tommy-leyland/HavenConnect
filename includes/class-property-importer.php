@@ -229,7 +229,7 @@ class HavenConnect_Property_Importer {
     return is_array($list[0]) ? $list[0] : [];
   }
 
-    private function hcn_extract_desc_fields(array $row): array {
+  private function extract_description_fields(array $row): array {
 
     $longKeys = [
         'longDescription','longDescriptionHtml',
@@ -253,14 +253,16 @@ class HavenConnect_Property_Importer {
 
         $v = $src[$k];
 
+        // Most common: direct string
         if (is_string($v)) return $v;
 
-        // Sometimes it’s wrapped
+        // Sometimes nested/wrapped
         if (is_array($v)) {
             foreach (['value','text','html','content','body'] as $sub) {
             if (isset($v[$sub]) && is_string($v[$sub])) return $v[$sub];
             }
-            // last resort: flatten string parts
+
+            // Last resort: flatten string parts
             $flat = [];
             array_walk_recursive($v, function($vv) use (&$flat){
             if (is_string($vv)) $flat[] = $vv;
@@ -275,8 +277,13 @@ class HavenConnect_Property_Importer {
     $short  = $pick($row, $shortKeys);
     $manual = $pick($row, $manualKeys);
 
-    // Log lengths so we can confirm long exists (no content leaked)
-    $this->logger->log("Descriptions: long_len=" . strlen(trim(strip_tags($long))) . " short_len=" . strlen(trim(strip_tags($short))));
+    // Log lengths (no content) so we know whether Hostfully actually provided long text
+    if ($this->logger) {
+        $this->logger->log(
+        "Descriptions: long_len=" . strlen(trim(strip_tags($long))) .
+        " short_len=" . strlen(trim(strip_tags($short)))
+        );
+    }
 
     return [
         'long'   => $long,
