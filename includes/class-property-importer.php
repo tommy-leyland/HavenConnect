@@ -239,6 +239,8 @@ if (function_exists('update_field')) {
 
     if (count($update) > 1) {
       $res = wp_update_post($update, true);
+      $saved = get_post_field('post_content', $post_id);
+      $this->logger->log("Descriptions: saved post_content_len=" . strlen((string)$saved) . " for {$propertyUid}");
       if (is_wp_error($res)) {
         $this->logger->log("Descriptions: wp_update_post error for {$propertyUid}: " . $res->get_error_message());
       } else {
@@ -289,48 +291,33 @@ if (function_exists('update_field')) {
    * Very defensive extraction for long/short descriptions.
    * This is why excerpt can work while content doesn't.
    */
-private function extract_description_fields(array $row): array {
+   private function extract_description_fields(array $row): array {
 
-  // Excerpt: prefer shortSummary, then summary
-  $short = '';
-  if (!empty($row['shortSummary']) && is_string($row['shortSummary'])) {
-    $short = $row['shortSummary'];
-  } elseif (!empty($row['summary']) && is_string($row['summary'])) {
-    $short = $row['summary'];
-  }
+    // Hostfully payload (what you're actually receiving) uses:
+    // - summary
+    // - shortSummary
+    // - houseManual (optional)
+    // plus section keys like space/neighbourhood/notes etc.
 
-  // Long content: build from structured sections in a consistent order
-  $parts = [];
+    $long  = $row['summary'] ?? $row['longDescription'] ?? $row['description'] ?? $row['publicDescription'] ?? '';
+    $short = $row['shortSummary'] ?? $row['shortDescription'] ?? $row['summary'] ?? $row['headline'] ?? '';
 
-  // Put summary at the top if present
-  if (!empty($row['summary']) && is_string($row['summary'])) {
-    $parts[] = wpautop(wp_kses_post($row['summary']));
-  }
+    // We are NOT importing houseManual into public content.
+    $manual = $row['houseManual'] ?? '';
 
-  $add = function(string $heading, string $key) use (&$parts, $row) {
-    if (!empty($row[$key]) && is_string($row[$key])) {
-      $text = trim($row[$key]);
-      if ($text !== '') {
-        $parts[] = '<h2>' . esc_html($heading) . '</h2>' . "\n" . wpautop(wp_kses_post($text));
-      }
+    // Hostfully sometimes gives literal "nn" instead of real line breaks.
+    $normalize = function($v) {
+        if (!is_string($v)) return '';
+        $v = str_replace("nn", "\n\n", $v);
+        return trim($v);
+    };
+
+    return [
+        'long'   => $normalize($long),
+        'short'  => $normalize($short),
+        'manual' => $normalize($manual),
+    ];
     }
-  };
-
-  $add('The space', 'space');
-  $add('Neighbourhood', 'neighbourhood');
-  $add('Access', 'access');
-  $add('Getting around', 'transit');
-  $add('Interaction', 'interaction');
-  $add('Notes', 'notes');
-
-  // Keep houseManual out of public content by default (store as meta elsewhere if you want)
-  $long = implode("\n\n", $parts);
-
-  return [
-    'long'  => $long,
-    'short' => $short,
-  ];
-}
 
   /**
    * Upsert the CPT post by _havenconnect_uid
