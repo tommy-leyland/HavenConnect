@@ -36,6 +36,7 @@ add_action('init', function () {
   add_action('wp_ajax_hcn_import_start',  'hcn_import_start_handler');
   add_action('wp_ajax_hcn_import_single', 'hcn_import_single_handler');
   add_action('wp_ajax_hcn_import_finish', 'hcn_import_finish_handler');
+  add_action('wp_ajax_hcn_get_log', 'hcn_get_log_handler');
 });
 
 /**
@@ -278,4 +279,41 @@ function hcn_import_finish_handler() {
   }
 
   wp_send_json_success(['message' => 'Import completed']);
+}
+
+/**
+ * LIVE LOG — fetch current log text for polling
+ *
+ * POST params:
+ * - tail: optional int, return only last N characters (default 12000)
+ */
+function hcn_get_log_handler() {
+  if (!current_user_can('manage_options')) {
+    wp_send_json_error(['message' => 'Unauthorized'], 403);
+  }
+  check_ajax_referer('hcn_import_nonce', 'nonce');
+
+  $hc = $GLOBALS['havenconnect'] ?? null;
+  if (!is_array($hc) || empty($hc['logger'])) {
+    wp_send_json_error(['message' => 'Logger not available.'], 500);
+  }
+
+  /** @var HavenConnect_Logger $logger */
+  $logger = $hc['logger'];
+
+  $tail = isset($_POST['tail']) ? max(1000, (int) $_POST['tail']) : 12000;
+
+  $text = '';
+  if (method_exists($logger, 'get')) {
+    $text = (string) $logger->get();
+  }
+
+  // Return last N chars (keeps payload small)
+  if (strlen($text) > $tail) {
+    $text = substr($text, -$tail);
+  }
+
+  wp_send_json_success([
+    'log' => $text,
+  ]);
 }
