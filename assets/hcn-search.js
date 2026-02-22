@@ -47,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       resultsWrap.innerHTML = json.data.html || "<p>No properties found.</p>";
+      window.dispatchEvent(new CustomEvent("hcn:search-updated"));
       statusEl.textContent = "";
 
     } catch (err) {

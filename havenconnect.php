@@ -12,6 +12,7 @@ define('HCN_VER',  '0.2.4');
 define('HCN_FILE', __FILE__);
 define('HCN_DIR',  plugin_dir_path(__FILE__));
 define('HCN_URL',  plugin_dir_url(__FILE__));
+define('HCN_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 /**
  * Loader helper
@@ -20,6 +21,9 @@ function hcn_require($rel) {
     $path = HCN_DIR . 'includes/' . ltrim($rel, '/');
     if (file_exists($path)) require_once $path;
 }
+
+hcn_require('class-map-shortcode.php');
+$GLOBALS['havenconnect']['map'] = new HavenConnect_Map_Shortcode();
 
 /**
  * Includes (order matters: core, CPT, utilities, importers, admin)
