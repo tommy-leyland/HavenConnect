@@ -17,8 +17,8 @@ class HavenConnect_Availability_Table {
 
     // 1) Create canonical table definition (dbDelta will add missing columns/indexes, but won't drop old columns)
     $sql = "CREATE TABLE {$table} (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-      post_id BIGINT UNSIGNED NOT NULL,
+      id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+      post_id BIGINT(20) UNSIGNED NOT NULL,
       property_uid VARCHAR(64) NOT NULL,
       for_date DATE NOT NULL,
 
@@ -26,7 +26,6 @@ class HavenConnect_Availability_Table {
       currency VARCHAR(8) NULL,
 
       unavailable TINYINT(1) NOT NULL DEFAULT 0,
-      
 
       checkin TINYINT(1) NULL,
       checkout TINYINT(1) NULL,
@@ -34,10 +33,9 @@ class HavenConnect_Availability_Table {
       min_stay INT NULL,
       max_stay INT NULL,
 
-      
       updated_at DATETIME NULL,
 
-      PRIMARY KEY (id),
+      PRIMARY KEY  (id),
       UNIQUE KEY uniq_property_date (property_uid, for_date),
       KEY idx_post_date (post_id, for_date),
       KEY idx_date (for_date)
@@ -73,8 +71,26 @@ class HavenConnect_Availability_Table {
         $drop[] = "DROP COLUMN `{$legacy}`";
       }
     }
+
+    error_log('HCN AVAIL drop fragments: ' . wp_json_encode($drop));
+
     if (!empty($drop)) {
-      $wpdb->query("ALTER TABLE {$table} " . implode(', ', $drop));
+
+      // Remove empty/invalid fragments so we never run: ADD `` (``)
+      $drop = array_values(array_filter($drop, function ($frag) {
+        $frag = trim((string)$frag);
+        if ($frag === '') return false;
+
+        // Reject anything that contains blank backticks or blank parentheses
+        if (strpos($frag, '``') !== false) return false;
+        if (preg_match('/\(\s*\)/', $frag)) return false;
+
+        return true;
+      }));
+
+      if (!empty($drop)) {
+        $wpdb->query("ALTER TABLE {$table} " . implode(', ', $drop));
+      }
     }
 
     // 4) Re-check required indexes exist (dbDelta should do it, but we’re explicit/defensive)

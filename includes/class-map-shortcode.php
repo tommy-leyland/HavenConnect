@@ -174,15 +174,20 @@ class HavenConnect_Map_Shortcode {
 
     $opts  = get_option('havenconnect_settings', []);
     $apiKey = trim($opts['api_key'] ?? '');
+    $agencyUid = trim($opts['agency_uid'] ?? '');
+
     if (!$apiKey) {
       wp_send_json_error(['message' => 'Missing Hostfully API key'], 500);
+    }
+    if (!$agencyUid) {
+      wp_send_json_error(['message' => 'Missing Hostfully agency UID'], 500);
     }
 
     if (empty($GLOBALS['havenconnect']['api']) || !method_exists($GLOBALS['havenconnect']['api'], 'calculate_quote')) {
       wp_send_json_error(['message' => 'API client missing calculate_quote()'], 500);
     }
 
-    $quote = $GLOBALS['havenconnect']['api']->calculate_quote($apiKey, $uid, $checkin, $checkout, $guests);
+    $quote = $GLOBALS['havenconnect']['api']->calculate_quote($apiKey, $agencyUid, $uid, $checkin, $checkout, $guests);
 
     // Prefer totalWithTaxes (your preference)
     $currency = (string)($quote['currency'] ?? $quote['quote']['currency'] ?? 'GBP');
