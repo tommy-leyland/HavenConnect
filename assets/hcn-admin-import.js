@@ -21,7 +21,21 @@ document.addEventListener("DOMContentLoaded", () => {
       fd.append("action", "hcn_loggia_test");
       fd.append("nonce", nonce);
 
-      const res = await fetch(ajaxUrl, { method: "POST", credentials: "same-origin", body: fd });
+      const res = await fetch(ajaxUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        body: fd
+      });
+
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+      if (!ct.includes("application/json")) {
+        const text = await res.text();
+        const where = res.redirected ? ` (redirected to ${res.url})` : "";
+        throw new Error(`Non-JSON response ${res.status}${where}: ${text.slice(0, 200)}`);
+      }
+
       const json = await res.json();
 
       if (!json || !json.success) {
@@ -210,6 +224,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await finishQueue(q.job_id);
   }
+
+  const pingBtn = document.getElementById("hcn-ping-btn");
+  const pingOut = document.getElementById("hcn-ping-out");
+
+  pingBtn?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (pingOut) pingOut.textContent = "Pinging…";
+
+    try {
+      const fd = new FormData();
+      fd.append("action", "hcn_ping");
+      fd.append("nonce", nonce);
+
+      const res = await fetch(ajaxUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        body: fd
+      });
+
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      const text = await res.text();
+
+      if (!ct.includes("application/json")) {
+        throw new Error(`Non-JSON response ${res.status}: ${text.slice(0, 120)}`);
+      }
+
+      const json = JSON.parse(text);
+      pingOut.textContent = json.success ? `✅ ${json.data.message}` : `❌ ${json.data.message}`;
+    } catch (err) {
+      if (pingOut) pingOut.textContent = "❌ " + err.message;
+    }
+  });
 
   const boxes = document.querySelectorAll(".hcn-import-box");
   // quick safety: if this is 0, you're on the wrong tab or markup mismatch

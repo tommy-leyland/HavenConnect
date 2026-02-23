@@ -17,25 +17,19 @@ class HavenConnect_Loggia_Importer {
     return $default;
   }
 
-  public function list_property_ids(HavenConnect_Loggia_Client $client, string $page_id) : array {
-    $list = $client->list_properties($page_id);
+  public function list_property_ids(HavenConnect_Loggia_Client $client, string $page_id, string $locale = 'en') : array {
+    $list = $client->list_properties_connections($page_id, $locale, 100, 0, 3, true);
     if (!is_array($list)) return [];
 
-    // We don't know the exact shape yet, so try common patterns.
-    $rows = $list['data'] ?? $list['properties'] ?? $list['items'] ?? (is_array($list) ? $list : []);
+    $rows = $list['properties'] ?? [];
     if (!is_array($rows)) $rows = [];
 
     $ids = [];
     foreach ($rows as $row) {
       if (!is_array($row)) continue;
-      $id = $row['property_id'] ?? $row['propertyId'] ?? $row['id'] ?? null;
+      $id = $row['property_id'] ?? $row['id'] ?? null;
       if ($id) $ids[] = (string)$id;
     }
-
-    if (empty($ids) && $this->logger) {
-      $this->logger->log("Loggia list: couldn't detect ids. Raw snippet: " . substr(wp_json_encode($list), 0, 900));
-    }
-
     return $ids;
   }
 
@@ -45,6 +39,19 @@ class HavenConnect_Loggia_Importer {
     string $page_id,
     string $locale
   ) : int {
+
+    // Prefer the property's own page_id if we can fetch it from the connections list
+    $connections = $client->list_properties_connections($page_id, $locale, 100, 0, 3, true);
+    if (is_array($connections) && !empty($connections['properties']) && is_array($connections['properties'])) {
+      foreach ($connections['properties'] as $row) {
+        if (!is_array($row)) continue;
+        $rid = (string)($row['property_id'] ?? $row['id'] ?? '');
+        if ($rid === (string)$property_id && !empty($row['page_id'])) {
+          $page_id = (string)$row['page_id'];
+          break;
+        }
+      }
+    }
 
     $summary = $client->get_summary($property_id, $page_id, $locale) ?? [];
     $desc    = $client->get_descriptions($property_id, $page_id, $locale) ?? [];

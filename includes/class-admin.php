@@ -111,7 +111,7 @@ class HavenConnect_Admin {
 	'hcn-admin-import',
 	plugin_dir_url(__FILE__) . '../assets/hcn-admin-import.js',
 	[],
-	'1.3.0',
+	'1.3.1',
 	true
 	);
 
@@ -254,14 +254,6 @@ class HavenConnect_Admin {
           <p class="hcn-muted">Updates automatically while an import is running.</p>
           <textarea id="hcn-log" class="hcn-log" readonly></textarea>
 
-          <script>
-            window.HCN_IMPORT = {
-              ajaxUrl: <?php echo wp_json_encode($ajaxUrl); ?>,
-              nonce: <?php echo wp_json_encode($nonce); ?>,
-              editBase: <?php echo wp_json_encode($editBase); ?>
-            };
-          </script>
-
         <?php else : ?>
 
           <h2 style="margin-top:0;">Provider Configuration</h2>
@@ -280,9 +272,20 @@ class HavenConnect_Admin {
             <p class="hcn-muted">Calls the Loggia list endpoint and reports whether it responds.</p>
             <button class="button" id="hcn-loggia-test-btn">Test Loggia Connection</button>
             <pre id="hcn-loggia-test-output" style="margin-top:10px; background:#111; color:#eee; padding:10px; border-radius:8px; max-height:220px; overflow:auto;"></pre>
+            <button class="button" id="hcn-ping-btn">Ping AJAX</button>
+            <pre id="hcn-ping-out" style="margin-top:8px;"></pre>
           </div>
 
         <?php endif; ?>
+
+        <script>
+            window.HCN_IMPORT = {
+                ajaxUrl: <?php echo wp_json_encode($ajaxUrl); ?>,
+                nonce: <?php echo wp_json_encode($nonce); ?>,
+                editBase: <?php echo wp_json_encode($editBase); ?>
+            };
+        </script>
+
       </div>
     </div>
     <?php

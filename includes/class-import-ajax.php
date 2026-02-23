@@ -44,6 +44,7 @@ add_action('init', function () {
   add_action('wp_ajax_hcn_import_finish', 'hcn_import_finish_handler');
   add_action('wp_ajax_hcn_get_log', 'hcn_get_log_handler');
   add_action('wp_ajax_hcn_loggia_test', 'hcn_loggia_test_handler');
+  add_action('wp_ajax_hcn_ping', 'hcn_ping_handler');
 });
 
 /**
@@ -202,7 +203,14 @@ function hcn_import_start_handler() {
           $logger->log('Loggia: HavenConnect_Loggia_Client class not found; skipping.');
         } else {
           $client = new HavenConnect_Loggia_Client($base_url, $api_key, $logger);
-          $ids    = $loggia_importer->list_property_ids($client, $page_id);
+
+          // Single property mode for Loggia (test import)
+          if ($provider === 'loggia' && $single_uid) {
+            $ids = [(string)$single_uid];
+            $logger->log("Loggia: single property mode enabled (property_id={$single_uid}).");
+          } else {
+            $ids = $loggia_importer->list_property_ids($client, $page_id, $locale);
+          }
 
           if (empty($ids)) {
             $logger->log('Loggia: no property ids returned.');
@@ -490,14 +498,23 @@ function hcn_get_log_handler() {
 
 function hcn_loggia_test_handler() {
   if (!current_user_can('manage_options')) {
+    if (ob_get_length()) ob_end_clean();
     wp_send_json_error(['message' => 'Unauthorized'], 403);
   }
   check_ajax_referer('hcn_import_nonce', 'nonce');
 
+  ob_start();
+
   $hc = $GLOBALS['havenconnect'] ?? null;
   if (!is_array($hc) || empty($hc['logger'])) {
+    if (ob_get_length()) ob_end_clean();
     wp_send_json_error(['message' => 'Logger not available.'], 500);
   }
+
+  header('Content-Type: application/json; charset=' . get_option('blog_charset'));
+  header('X-Content-Type-Options: nosniff');
+  nocache_headers();
+
   /** @var HavenConnect_Logger $logger */
   $logger = $hc['logger'];
 
@@ -505,19 +522,42 @@ function hcn_loggia_test_handler() {
   $base_url = $settings['loggiaBaseUrl'] ?? '';
   $api_key  = $settings['loggiaApiKey'] ?? '';
   $page_id  = $settings['loggiaPageId'] ?? '';
-  $locale   = $settings['loggiaLocale'] ?? 'en';
 
   if (!$base_url || !$api_key || !$page_id) {
+    if (ob_get_length()) ob_end_clean();
     wp_send_json_error(['message' => 'Loggia not configured (missing Base URL / API Key / Page ID).'], 400);
   }
 
-  // Load client
-  if (defined('HCN_DIR')) {
-    $client_path = HCN_DIR . 'includes/providers/loggia/class-loggia-client.php';
-    if (file_exists($client_path)) require_once $client_path;
+  // If base_url isn't a proper URL, stop and return a clear message
+  if (!filter_var($base_url, FILTER_VALIDATE_URL)) {
+    if (ob_get_length()) ob_end_clean();
+    wp_send_json_error(['message' => 'Loggia Base URL is not a valid URL (it must start with http:// or https://).'], 400);
+  }
+
+  // If they gave you a ".local" dev hostname, stop and explain why
+  $host = parse_url($base_url, PHP_URL_HOST);
+  if ($host && substr($host, -6) === '.local') {
+    if (ob_get_length()) ob_end_clean();
+    wp_send_json_error(['message' => 'Loggia Base URL is a local dev hostname (.local). You need Loggia’s real staging/production base URL (or VPN/hosts mapping).'], 400);
+  }
+
+  // basic URL sanity so we don't hit weird proxy behaviour
+  if (!preg_match('#^https?://#i', $base_url)) {
+    if (ob_get_length()) ob_end_clean();
+    wp_send_json_error(['message' => 'Loggia Base URL must start with http:// or https://'], 400);
+  }
+
+  // Load client class
+  $client_path = defined('HCN_PATH')
+    ? HCN_PATH . 'includes/providers/loggia/class-loggia-client.php'
+    : (plugin_dir_path(__FILE__) . 'providers/loggia/class-loggia-client.php');
+
+  if (file_exists($client_path)) {
+    require_once $client_path;
   }
 
   if (!class_exists('HavenConnect_Loggia_Client')) {
+    if (ob_get_length()) ob_end_clean();
     wp_send_json_error(['message' => 'Loggia client class not found.'], 500);
   }
 
@@ -529,6 +569,7 @@ function hcn_loggia_test_handler() {
   if (!is_array($list)) {
     $logger->log("Loggia test: list_properties returned null/non-array.");
     $logger->save();
+    if (ob_get_length()) ob_end_clean();
     wp_send_json_error(['message' => 'Loggia API call failed (no JSON returned).'], 502);
   }
 
@@ -542,9 +583,30 @@ function hcn_loggia_test_handler() {
   $logger->log("Loggia test: list OK. First property_id=" . ($first_id ? $first_id : 'not detected'));
   $logger->save();
 
+  if (ob_get_length()) ob_end_clean();
+
   wp_send_json_success([
     'message' => 'Loggia connection OK (list endpoint responded).',
     'first_property_id' => $first_id,
     'keys' => array_keys($list),
+  ]);
+}
+
+function hcn_ping_handler() {
+  if (!current_user_can('manage_options')) {
+    if (ob_get_length()) ob_end_clean();
+    wp_send_json_error(['message' => 'Unauthorized'], 403);
+  }
+  check_ajax_referer('hcn_import_nonce', 'nonce');
+
+  header('Content-Type: application/json; charset=' . get_option('blog_charset'));
+  header('X-Content-Type-Options: nosniff');
+  nocache_headers();
+
+  if (ob_get_length()) ob_end_clean();
+
+  wp_send_json_success([
+    'message' => 'pong',
+    'time' => time(),
   ]);
 }
