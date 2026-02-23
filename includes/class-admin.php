@@ -107,13 +107,13 @@ class HavenConnect_Admin {
   public function enqueue_admin_assets($hook) {
     if ($hook !== 'settings_page_havenconnect') return;
 
-    wp_enqueue_script(
-      'hcn-admin-import',
-      plugin_dir_url(dirname(__FILE__)) . 'assets/hcn-admin-import.js',
-      [],
-      '1.1.0',
-      true
-    );
+	wp_enqueue_script(
+	'hcn-admin-import',
+	plugin_dir_url(__FILE__) . '../assets/hcn-admin-import.js',
+	[],
+	'1.2.0',
+	true
+	);
 
     // Tiny admin styles for tabs/cards (kept inline to avoid another file)
     $css = "
