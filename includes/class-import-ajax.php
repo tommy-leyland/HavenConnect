@@ -394,6 +394,19 @@ function hcn_import_single_handler() {
 				wp_send_json_error(['message' => "Loggia client missing method: {$m}"], 500);
 			}
 		}
+
+    // Capture fatals that bypass normal exception handling
+    register_shutdown_function(function () use ($logger, $provider, $external) {
+      $e = error_get_last();
+      if (!$e) return;
+
+      $logger->log("LAST_ERROR during {$provider}:{$external}: [type={$e['type']}] {$e['message']} in {$e['file']}:{$e['line']}");
+      $logger->save();
+    });
+
+      $logger->log("Loggia: entering import_one() for {$external} …");
+      $logger->save();
+
       $post_id = (int)$loggia_importer->import_one($client, $external, $page_id, $locale);
 
     } else {

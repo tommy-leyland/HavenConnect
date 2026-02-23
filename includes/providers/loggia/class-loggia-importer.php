@@ -40,8 +40,29 @@ class HavenConnect_Loggia_Importer {
     string $locale
   ) : int {
 
+    if ($this->logger) {
+      $this->logger->log("Loggia importer: import_one() started. property_id={$property_id}, page_id={$page_id}, locale={$locale}");
+      if ($this->logger) $this->logger->log("Loggia importer: CHECKPOINT A");
+      $this->logger->save();
+    }
+
     // Prefer the property's own page_id if we can fetch it from the connections list
-    $connections = $client->list_properties_connections($page_id, $locale, 100, 0, 3, true);
+ 
+    $connections = null;
+    try {
+      $connections = $client->list_properties_connections($page_id, $locale, 100, 0, 3, true);
+    } catch (Throwable $e) {
+      if ($this->logger) {
+        $this->logger->log("Loggia importer ERROR: list_properties_connections threw: " . $e->getMessage());
+        $this->logger->log($e->getTraceAsString());
+        $this->logger->save();
+      }
+      // Continue without connections (we can still import via other endpoints)
+      $connections = null;
+    }
+
+    if ($this->logger) $this->logger->log("Loggia importer: connections type=" . gettype($connections));
+ 
     if (is_array($connections) && !empty($connections['properties']) && is_array($connections['properties'])) {
       foreach ($connections['properties'] as $row) {
         if (!is_array($row)) continue;
@@ -73,6 +94,17 @@ class HavenConnect_Loggia_Importer {
 	$title = 'Loggia Property ' . $property_id;
 	$content_payload = $client->get_content($property_id, $page_id, $locale) ?? [];
 
+  if ($this->logger) {
+    $this->logger->log(
+      "Loggia importer: types summary=" . gettype($summary) .
+      " desc=" . gettype($desc) .
+      " media=" . gettype($media) .
+      " loc=" . gettype($loc) .
+      " content=" . gettype($content_payload)
+    );
+    $this->logger->save();
+  }
+
 	if ($this->logger) {
 	$this->logger->log('Loggia summary keys: ' . implode(',', array_keys((array)$summary)));
 	$this->logger->log('Loggia desc keys: ' . implode(',', array_keys((array)$desc)));
@@ -84,6 +116,8 @@ class HavenConnect_Loggia_Importer {
 	$this->logger->log('Loggia content snippet: ' . substr(wp_json_encode($content_payload), 0, 600));
 	}
 
+  if ($this->logger) { $this->logger->save(); }
+
 	$content = '';
 	if (is_array($content_payload)) {
 	$content =
@@ -94,6 +128,13 @@ class HavenConnect_Loggia_Importer {
 		'';
 	}
 	$content = is_string($content) ? $content : '';
+
+  if ($this->logger) {
+  $this->logger->log('Loggia connections snippet: ' . substr(wp_json_encode($connections), 0, 600));
+  $this->logger->log('Loggia content snippet: ' . substr(wp_json_encode($content_payload), 0, 600));
+  $this->logger->log('Loggia media snippet: ' . substr(wp_json_encode($media), 0, 600));
+  $this->logger->save();
+}
 
 	// Prefer connections list (this is what you saw in Postman: property_title/page_title)
 	if (is_array($prop_row)) {
