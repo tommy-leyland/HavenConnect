@@ -18,8 +18,13 @@ if (!defined('ABSPATH')) exit;
 function hcn_ajax_get_settings(): array {
   $opts = get_option('havenconnect_settings', []);
   return [
-    'apiKey'     => trim($opts['api_key'] ?? ''),
-    'agencyUid'  => trim($opts['agency_uid'] ?? ''),
+    'apiKey' => trim($opts['api_key'] ?? ''),
+    'agencyUid' => trim($opts['agency_uid'] ?? ''),
+
+    'loggiaBaseUrl' => trim($opts['loggia_base_url'] ?? ''),
+    'loggiaApiKey'  => trim($opts['loggia_api_key'] ?? ''),
+    'loggiaPageId'  => trim($opts['loggia_page_id'] ?? ''),
+    'loggiaLocale'  => trim($opts['loggia_locale'] ?? 'en'),
   ];
 }
 

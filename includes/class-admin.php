@@ -32,6 +32,10 @@ class HavenConnect_Admin {
         'api_key'             => sanitize_text_field($v['api_key'] ?? ''),
         'agency_uid'          => sanitize_text_field($v['agency_uid'] ?? ''),
         'google_maps_api_key' => sanitize_text_field($v['google_maps_api_key'] ?? ''),
+        'loggia_base_url' => esc_url_raw($v['loggia_base_url'] ?? ''),
+        'loggia_api_key'  => sanitize_text_field($v['loggia_api_key'] ?? ''),
+        'loggia_page_id'  => sanitize_text_field($v['loggia_page_id'] ?? ''),
+        'loggia_locale'   => sanitize_text_field($v['loggia_locale'] ?? 'en'),
       ];
     });
 
@@ -47,6 +51,10 @@ class HavenConnect_Admin {
     add_settings_field('hcn_api_key', 'Hostfully API Key', [$this, 'field_api_key'], 'havenconnect', 'hcn_section_main');
     add_settings_field('hcn_agency_uid', 'Agency UID', [$this, 'field_agency_uid'], 'havenconnect', 'hcn_section_main');
     add_settings_field('hcn_google_maps_key', 'Google Maps API Key', [$this, 'field_google_maps_api_key'], 'havenconnect', 'hcn_section_main');
+    add_settings_field('hcn_loggia_base_url', 'Loggia Base URL', [$this, 'field_loggia_base_url'], 'havenconnect', 'hcn_section_main');
+    add_settings_field('hcn_loggia_api_key',  'Loggia API Key',  [$this, 'field_loggia_api_key'],  'havenconnect', 'hcn_section_main');
+    add_settings_field('hcn_loggia_page_id',  'Loggia Page ID',  [$this, 'field_loggia_page_id'],  'havenconnect', 'hcn_section_main');
+    add_settings_field('hcn_loggia_locale',   'Loggia Locale',   [$this, 'field_loggia_locale'],   'havenconnect', 'hcn_section_main');
   }
 
   public function field_api_key() {
@@ -67,6 +75,30 @@ class HavenConnect_Admin {
     echo "<input type='text' name='" . self::OPTION_KEY . "[google_maps_api_key]' value='{$val}' class='regular-text' />";
     echo "<p class='description'>Needs Maps JavaScript API enabled + billing in Google Cloud.</p>";
   }
+
+  public function field_loggia_base_url() {
+  $opts = get_option(self::OPTION_KEY, []);
+  $val = esc_attr($opts['loggia_base_url'] ?? '');
+  echo "<input type='url' name='".self::OPTION_KEY."[loggia_base_url]' value='{$val}' class='regular-text' placeholder='https://api.example.com'>";
+}
+
+public function field_loggia_api_key() {
+  $opts = get_option(self::OPTION_KEY, []);
+  $val = esc_attr($opts['loggia_api_key'] ?? '');
+  echo "<input type='text' name='".self::OPTION_KEY."[loggia_api_key]' value='{$val}' class='regular-text' autocomplete='off'>";
+}
+
+public function field_loggia_page_id() {
+  $opts = get_option(self::OPTION_KEY, []);
+  $val = esc_attr($opts['loggia_page_id'] ?? '');
+  echo "<input type='text' name='".self::OPTION_KEY."[loggia_page_id]' value='{$val}' class='regular-text'>";
+}
+
+public function field_loggia_locale() {
+  $opts = get_option(self::OPTION_KEY, []);
+  $val = esc_attr($opts['loggia_locale'] ?? 'en');
+  echo "<input type='text' name='".self::OPTION_KEY."[loggia_locale]' value='{$val}' class='small-text' placeholder='en'>";
+}
 
   public function render_settings_page() {
     if (!current_user_can('manage_options')) return;

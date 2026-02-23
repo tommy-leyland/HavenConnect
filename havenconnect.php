@@ -46,6 +46,15 @@ hcn_require('class-search-shortcode.php');
 new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
 // hcn_require('class-import-cron.php'); // optional later cron
 
+// LOGGIA
+hcn_require('providers/loggia/class-loggia-client.php');
+hcn_require('providers/loggia/class-loggia-importer.php');
+
+// after $logger, $photos are created:
+$loggia_importer = new HavenConnect_Loggia_Importer($logger, $photos);
+
+$GLOBALS['havenconnect']['loggia_importer'] = $loggia_importer;
+
 /**
  * Create availability table on activation
  */
