@@ -202,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
       provider,
       mode,
       // Hostfully-only: server uses property_uid to build a 1-item queue
-      property_uid: (provider === "hostfully" && action === "run-single") ? singleId : "",
+      property_uid: (action === "run-single") ? singleId : "",
     });
 
     const total = q.total || 0;
@@ -213,13 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (action === "run-all") {
       for (let i = 0; i < total; i++) await importIndex(q.job_id, i);
     } else if (action === "run-single") {
-      if (provider === "hostfully") {
-        if (total > 0) await importIndex(q.job_id, 0);
-      } else if (provider === "loggia") {
-        alert("Loggia single import needs a small server-side tweak. Use Run First N for now.");
-      } else {
-        alert("Single import is only supported in the Hostfully/Loggia sections.");
-      }
+      if (total > 0) await importIndex(q.job_id, 0);
     }
 
     await finishQueue(q.job_id);

@@ -332,6 +332,7 @@ function hcn_import_single_handler() {
 
   try {
     $logger->log("Importing {$name} ({$provider}:{$external}) …");
+	$logger->save(); // <-- so we still see this line even if something fatals later
 
     $post_id = 0;
 
@@ -385,6 +386,14 @@ function hcn_import_single_handler() {
       }
 
       $client = new HavenConnect_Loggia_Client($base_url, $api_key, $logger);
+		$required = ['list_properties_connections','get_summary','get_content','get_descriptions','get_media','get_features_by_group','get_location'];
+			foreach ($required as $m) {
+			if (!method_exists($client, $m)) {
+				$logger->log("Loggia ERROR: client missing method {$m}. Update includes/providers/loggia/class-loggia-client.php");
+				$logger->save();
+				wp_send_json_error(['message' => "Loggia client missing method: {$m}"], 500);
+			}
+		}
       $post_id = (int)$loggia_importer->import_one($client, $external, $page_id, $locale);
 
     } else {

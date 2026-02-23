@@ -53,34 +53,96 @@ class HavenConnect_Loggia_Importer {
       }
     }
 
+	// Get the property row from connections (gives reliable title + export url)
+	$prop_row = null;
+	if (is_array($connections) && !empty($connections['properties']) && is_array($connections['properties'])) {
+	foreach ($connections['properties'] as $row) {
+		if (!is_array($row)) continue;
+		$rid = (string)($row['property_id'] ?? $row['id'] ?? '');
+		if ($rid === (string)$property_id) {
+		$prop_row = $row;
+		break;
+		}
+	}
+	}
+
     $summary = $client->get_summary($property_id, $page_id, $locale) ?? [];
     $desc    = $client->get_descriptions($property_id, $page_id, $locale) ?? [];
     $media   = $client->get_media($property_id, $page_id, $locale, 'thumb') ?? [];
     $loc     = $client->get_location($property_id, $page_id, $locale) ?? [];
+	$title = 'Loggia Property ' . $property_id;
+	$content_payload = $client->get_content($property_id, $page_id, $locale) ?? [];
 
-    // Title guess: adjust once we see live payload
-    $title = 'Loggia Property ' . $property_id;
-    if (is_array($summary)) {
-      $title = $this->first($summary, ['name','title','property_name'], $title);
-      if (isset($summary['data']) && is_array($summary['data'])) {
-        $title = $this->first($summary['data'], ['name','title','property_name'], $title);
-      }
-    }
+	if ($this->logger) {
+	$this->logger->log('Loggia summary keys: ' . implode(',', array_keys((array)$summary)));
+	$this->logger->log('Loggia desc keys: ' . implode(',', array_keys((array)$desc)));
+	$this->logger->log('Loggia content keys: ' . implode(',', array_keys((array)$content_payload)));
+	$this->logger->log('Loggia media keys: ' . implode(',', array_keys((array)$media)));
+	$this->logger->log('Loggia loc keys: ' . implode(',', array_keys((array)$loc)));
+	// small snippets (so log doesn’t explode)
+	$this->logger->log('Loggia desc snippet: ' . substr(wp_json_encode($desc), 0, 600));
+	$this->logger->log('Loggia content snippet: ' . substr(wp_json_encode($content_payload), 0, 600));
+	}
 
-    $content = '';
-    $excerpt = '';
+	$content = '';
+	if (is_array($content_payload)) {
+	$content =
+		$content_payload['content'] ??
+		$content_payload['html'] ??
+		($content_payload['data']['content'] ?? null) ??
+		($content_payload['data']['html'] ?? null) ??
+		'';
+	}
+	$content = is_string($content) ? $content : '';
 
-    // Description guess: adjust once we see live payload
-    if (isset($desc['long']) || isset($desc['short'])) {
-      $content = (string)($desc['long'] ?? '');
-      $excerpt = (string)($desc['short'] ?? '');
-    } elseif (isset($desc['data']) && is_array($desc['data'])) {
-      $content = (string)($desc['data']['long'] ?? $desc['data']['description'] ?? '');
-      $excerpt = (string)($desc['data']['short'] ?? $desc['data']['summary'] ?? '');
-    }
+	// Prefer connections list (this is what you saw in Postman: property_title/page_title)
+	if (is_array($prop_row)) {
+	$title = $prop_row['property_title'] ?? $prop_row['page_title'] ?? $title;
+
+	// Optional but useful: store iCal export URL for availability later
+	if (!empty($prop_row['cm_ical']['export_url'])) {
+	}
+	}
+
+	// Fall back to summary only if it provides a non-empty title
+	if (is_array($summary)) {
+	$maybe = $summary['property_title'] ?? $summary['page_title'] ?? $summary['title'] ?? '';
+	if (isset($summary['data']) && is_array($summary['data'])) {
+		$maybe = $summary['data']['property_title'] ?? $summary['data']['page_title'] ?? $maybe;
+	}
+	if (is_string($maybe) && trim($maybe) !== '') {
+		$title = $maybe;
+	}
+	}
+
+	// --- Content: prefer /frontend/get/property/content ---
+	$content = '';
+	if (is_array($content_payload)) {
+	$content =
+		($content_payload['content'] ?? null) ??
+		($content_payload['html'] ?? null) ??
+		($content_payload['data']['content'] ?? null) ??
+		($content_payload['data']['html'] ?? null) ??
+		'';
+	}
+	$content = is_string($content) ? $content : '';
+
+	// --- Excerpt: best-effort from descriptions endpoint (we’ll refine once we see shape) ---
+	$excerpt = '';
+	if (isset($desc['short']) && is_string($desc['short'])) {
+	$excerpt = $desc['short'];
+	} elseif (isset($desc['data']['short']) && is_string($desc['data']['short'])) {
+	$excerpt = $desc['data']['short'];
+	} elseif (isset($desc['data']['summary']) && is_string($desc['data']['summary'])) {
+	$excerpt = $desc['data']['summary'];
+	}
 
     // Upsert by meta key
     $post_id = $this->upsert_post($property_id, $title, $content, $excerpt);
+
+	if (is_array($prop_row) && !empty($prop_row['cm_ical']['export_url'])) {
+	update_post_meta($post_id, 'loggia_ical_export_url', $prop_row['cm_ical']['export_url']);
+	}
 
     // Media URLs (best-effort until we see the response shape)
     $urls = $this->extract_media_urls($media);
@@ -108,18 +170,26 @@ class HavenConnect_Loggia_Importer {
     if (!is_array($media)) return [];
 
     // Common patterns: media['images'] or media['data'] etc.
-    $items = $media['images'] ?? $media['data'] ?? $media['items'] ?? [];
+    $items =
+	$media['images'] ??
+	$media['photos'] ??
+	$media['media'] ??
+	$media['data'] ??
+	$media['items'] ??
+	[];
     if (!is_array($items)) $items = [];
 
     $urls = [];
     foreach ($items as $img) {
       if (!is_array($img)) continue;
-      $url =
-        $img['url'] ??
-        $img['src'] ??
-        $img['thumb'] ??
-        ($img['sizes']['thumb'] ?? null) ??
-        ($img['sizes']['square_thumb'] ?? null);
+		$url =
+		$img['url'] ??
+		$img['src'] ??
+		$img['image'] ??
+		$img['path'] ??
+		$img['thumb'] ??
+		($img['sizes']['thumb'] ?? null) ??
+		($img['sizes']['square_thumb'] ?? null);
 
       if ($url && is_string($url)) $urls[] = $url;
     }
