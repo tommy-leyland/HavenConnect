@@ -111,7 +111,7 @@ class HavenConnect_Admin {
 	'hcn-admin-import',
 	plugin_dir_url(__FILE__) . '../assets/hcn-admin-import.js',
 	[],
-	'1.2.0',
+	'1.3.0',
 	true
 	);
 
@@ -241,6 +241,7 @@ class HavenConnect_Admin {
                 <input data-role="single-id" type="text" placeholder="Loggia property id…" style="width:420px; max-width:100%;" <?php echo $has_loggia ? '' : 'disabled'; ?>>
                 <button class="button" data-action="run-single" <?php echo $has_loggia ? '' : 'disabled'; ?>>Run Single</button>
               </div>
+
             </div>
           </div>
 
@@ -273,6 +274,13 @@ class HavenConnect_Admin {
               submit_button('Save Settings');
             ?>
           </form>
+
+          <div class="hcn-card" style="margin-top:16px;">
+            <h3 style="margin-top:0;">Loggia Connection Test</h3>
+            <p class="hcn-muted">Calls the Loggia list endpoint and reports whether it responds.</p>
+            <button class="button" id="hcn-loggia-test-btn">Test Loggia Connection</button>
+            <pre id="hcn-loggia-test-output" style="margin-top:10px; background:#111; color:#eee; padding:10px; border-radius:8px; max-height:220px; overflow:auto;"></pre>
+          </div>
 
         <?php endif; ?>
       </div>

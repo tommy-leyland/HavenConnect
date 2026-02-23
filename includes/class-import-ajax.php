@@ -43,6 +43,7 @@ add_action('init', function () {
   add_action('wp_ajax_hcn_import_single', 'hcn_import_single_handler');
   add_action('wp_ajax_hcn_import_finish', 'hcn_import_finish_handler');
   add_action('wp_ajax_hcn_get_log', 'hcn_get_log_handler');
+  add_action('wp_ajax_hcn_loggia_test', 'hcn_loggia_test_handler');
 });
 
 /**
@@ -484,5 +485,66 @@ function hcn_get_log_handler() {
     'chunk'  => is_string($chunk) ? $chunk : '',
     'offset' => $size,
     'size'   => $size,
+  ]);
+}
+
+function hcn_loggia_test_handler() {
+  if (!current_user_can('manage_options')) {
+    wp_send_json_error(['message' => 'Unauthorized'], 403);
+  }
+  check_ajax_referer('hcn_import_nonce', 'nonce');
+
+  $hc = $GLOBALS['havenconnect'] ?? null;
+  if (!is_array($hc) || empty($hc['logger'])) {
+    wp_send_json_error(['message' => 'Logger not available.'], 500);
+  }
+  /** @var HavenConnect_Logger $logger */
+  $logger = $hc['logger'];
+
+  $settings = hcn_ajax_get_settings();
+  $base_url = $settings['loggiaBaseUrl'] ?? '';
+  $api_key  = $settings['loggiaApiKey'] ?? '';
+  $page_id  = $settings['loggiaPageId'] ?? '';
+  $locale   = $settings['loggiaLocale'] ?? 'en';
+
+  if (!$base_url || !$api_key || !$page_id) {
+    wp_send_json_error(['message' => 'Loggia not configured (missing Base URL / API Key / Page ID).'], 400);
+  }
+
+  // Load client
+  if (defined('HCN_DIR')) {
+    $client_path = HCN_DIR . 'includes/providers/loggia/class-loggia-client.php';
+    if (file_exists($client_path)) require_once $client_path;
+  }
+
+  if (!class_exists('HavenConnect_Loggia_Client')) {
+    wp_send_json_error(['message' => 'Loggia client class not found.'], 500);
+  }
+
+  $client = new HavenConnect_Loggia_Client($base_url, $api_key, $logger);
+
+  $logger->log("Loggia test: calling list_properties(page_id={$page_id}) …");
+  $list = $client->list_properties($page_id);
+
+  if (!is_array($list)) {
+    $logger->log("Loggia test: list_properties returned null/non-array.");
+    $logger->save();
+    wp_send_json_error(['message' => 'Loggia API call failed (no JSON returned).'], 502);
+  }
+
+  // Try to detect a property id (best-effort)
+  $first_id = null;
+  $rows = $list['data'] ?? $list['properties'] ?? $list['items'] ?? null;
+  if (is_array($rows) && !empty($rows[0]) && is_array($rows[0])) {
+    $first_id = $rows[0]['property_id'] ?? $rows[0]['propertyId'] ?? $rows[0]['id'] ?? null;
+  }
+
+  $logger->log("Loggia test: list OK. First property_id=" . ($first_id ? $first_id : 'not detected'));
+  $logger->save();
+
+  wp_send_json_success([
+    'message' => 'Loggia connection OK (list endpoint responded).',
+    'first_property_id' => $first_id,
+    'keys' => array_keys($list),
   ]);
 }
