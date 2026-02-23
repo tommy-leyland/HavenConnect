@@ -563,8 +563,8 @@ function hcn_loggia_test_handler() {
 
   $client = new HavenConnect_Loggia_Client($base_url, $api_key, $logger);
 
-  $logger->log("Loggia test: calling list_properties(page_id={$page_id}) …");
-  $list = $client->list_properties($page_id);
+  $logger->log("Loggia test: calling list_properties_connections(page_id={$page_id}, locale={$locale}) …");
+  $list = $client->list_properties_connections($page_id, $locale);
 
   if (!is_array($list)) {
     $logger->log("Loggia test: list_properties returned null/non-array.");
@@ -575,9 +575,9 @@ function hcn_loggia_test_handler() {
 
   // Try to detect a property id (best-effort)
   $first_id = null;
-  $rows = $list['data'] ?? $list['properties'] ?? $list['items'] ?? null;
+  $rows = $list['properties'] ?? null;
   if (is_array($rows) && !empty($rows[0]) && is_array($rows[0])) {
-    $first_id = $rows[0]['property_id'] ?? $rows[0]['propertyId'] ?? $rows[0]['id'] ?? null;
+    $first_id = $rows[0]['property_id'] ?? $rows[0]['id'] ?? null;
   }
 
   $logger->log("Loggia test: list OK. First property_id=" . ($first_id ? $first_id : 'not detected'));
