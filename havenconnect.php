@@ -46,15 +46,6 @@ hcn_require('class-search-shortcode.php');
 new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
 // hcn_require('class-import-cron.php'); // optional later cron
 
-// LOGGIA
-hcn_require('providers/loggia/class-loggia-client.php');
-hcn_require('providers/loggia/class-loggia-importer.php');
-
-// after $logger, $photos are created:
-$loggia_importer = new HavenConnect_Loggia_Importer($logger, $photos);
-
-$GLOBALS['havenconnect']['loggia_importer'] = $loggia_importer;
-
 /**
  * Create availability table on activation
  */
@@ -86,6 +77,11 @@ add_action('init', function () {
 
     $api    = new HavenConnect_Api_Client($logger);
     $photos = new HavenConnect_Photo_Sync($logger);
+    // --- Loggia provider singletons
+    hcn_require('providers/loggia/class-loggia-client.php');
+    hcn_require('providers/loggia/class-loggia-importer.php');
+
+    $loggia_importer = new HavenConnect_Loggia_Importer($logger, $photos);
 
     // Availability importer (OAuth pending)
     $availability = new HavenConnect_Availability_Importer($api, $logger);
@@ -95,13 +91,14 @@ add_action('init', function () {
     $admin    = new HavenConnect_Admin($importer, $logger);
 
     $GLOBALS['havenconnect'] = [
-        'logger'       => $logger,
-        'api'          => $api,
-        'tax'          => $tax,
-        'photos'       => $photos,
-        'availability' => $availability,
-        'importer'     => $importer,
-        'admin'        => $admin,
+      'logger'       => $logger,
+      'api'          => $api,
+      'tax'          => $tax,
+      'photos'       => $photos,
+      'availability' => $availability,
+      'importer'     => $importer,
+      'admin'        => $admin,
+      'loggia_importer' => $loggia_importer,
     ];
 
     // Ensure the CPT supports classic custom fields
