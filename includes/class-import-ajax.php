@@ -84,6 +84,7 @@ function hcn_import_start_handler() {
   }
 
   $settings  = hcn_ajax_get_settings();
+  $locale = $settings['loggiaLocale'] ?? 'en';
 
   $mode       = sanitize_text_field($_POST['mode'] ?? 'all');
   $provider   = sanitize_text_field($_POST['provider'] ?? 'hostfully'); // hostfully|loggia|both
