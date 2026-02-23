@@ -8,7 +8,8 @@
  *
  * Notes:
  * - Default queue mode is ALL properties (not featured).
- * - Supports single-property testing by passing POST property_uid.
+ * - Supports single-property testing by passing POST property_uid (Hostfully only).
+ * - Supports providers: hostfully | loggia | both
  * - No stray output that could corrupt JSON.
  */
 
@@ -42,15 +43,15 @@ add_action('init', function () {
   add_action('wp_ajax_hcn_import_single', 'hcn_import_single_handler');
   add_action('wp_ajax_hcn_import_finish', 'hcn_import_finish_handler');
   add_action('wp_ajax_hcn_get_log', 'hcn_get_log_handler');
-  
 });
 
 /**
  * START — build queue
  *
  * POST params:
- * - mode: 'all' (default) or 'featured'
- * - property_uid: optional, if set builds a single-item queue
+ * - mode: 'all' (default) or 'featured' (Hostfully only)
+ * - provider: 'hostfully' (default) | 'loggia' | 'both'
+ * - property_uid: optional, if set builds a single-item queue (Hostfully only)
  */
 function hcn_import_start_handler() {
   if (!current_user_can('manage_options')) {
@@ -81,76 +82,163 @@ function hcn_import_start_handler() {
   }
 
   $settings  = hcn_ajax_get_settings();
-  $apiKey    = $settings['apiKey'];
-  $agencyUid = $settings['agencyUid'];
 
-  if (!$apiKey || !$agencyUid) {
-    $logger->log('Missing API credentials for AJAX start.');
-    $logger->save();
-    wp_send_json_error(['message' => 'Missing API credentials.'], 400);
-  }
-
-  $mode = sanitize_text_field($_POST['mode'] ?? 'all');
+  $mode       = sanitize_text_field($_POST['mode'] ?? 'all');
+  $provider   = sanitize_text_field($_POST['provider'] ?? 'hostfully'); // hostfully|loggia|both
   $single_uid = sanitize_text_field($_POST['property_uid'] ?? '');
 
-  $list = [];
-  $source = 'all';
+  // Normalize provider
+  if (!in_array($provider, ['hostfully', 'loggia', 'both'], true)) {
+    $provider = 'hostfully';
+  }
 
-  // Single property mode (test import)
-  if ($single_uid) {
-    $details = $api->get_property_details($apiKey, $single_uid);
-    $p = [];
+  $items  = [];
+  $source = $provider;
 
-    if (is_array($details)) {
-      $p = isset($details['property']) && is_array($details['property'])
-        ? $details['property']
-        : $details;
-    }
+  /**
+   * HOSTFULLY QUEUE
+   * - Only if provider=hostfully|both
+   * - Supports single_uid and mode featured/all
+   */
+  if ($provider === 'hostfully' || $provider === 'both') {
+    $apiKey    = $settings['apiKey'];
+    $agencyUid = $settings['agencyUid'];
 
-    if (!empty($p)) {
-      $list = [$p];
-      $source = 'single';
-    }
-  } else {
-    // Default: ALL properties (clean baseline)
-    if ($mode === 'featured' && method_exists($api, 'get_featured_list')) {
-      $list = $api->get_featured_list($apiKey, $agencyUid);
-      $source = 'featured';
+    if (!$apiKey || !$agencyUid) {
+      $logger->log('Hostfully: missing API credentials; skipping Hostfully queue build.');
     } else {
-      if (method_exists($api, 'get_properties_by_agency')) {
-        $list = $api->get_properties_by_agency($apiKey, $agencyUid);
-        $source = 'all';
+      $list = [];
+      $hostfully_source = 'all';
+
+      // Single property mode (test import) — Hostfully only
+      if ($single_uid) {
+        $details = $api->get_property_details($apiKey, $single_uid);
+        $p = [];
+
+        if (is_array($details)) {
+          $p = isset($details['property']) && is_array($details['property'])
+            ? $details['property']
+            : $details;
+        }
+
+        if (!empty($p)) {
+          $list = [$p];
+          $hostfully_source = 'single';
+        }
+      } else {
+        // Default: ALL properties (clean baseline)
+        if ($mode === 'featured' && method_exists($api, 'get_featured_list')) {
+          $list = $api->get_featured_list($apiKey, $agencyUid);
+          $hostfully_source = 'featured';
+        } else {
+          if (method_exists($api, 'get_properties_by_agency')) {
+            $list = $api->get_properties_by_agency($apiKey, $agencyUid);
+            $hostfully_source = 'all';
+          }
+        }
+      }
+
+      if (empty($list)) {
+        $logger->log("Hostfully: no properties available for mode={$hostfully_source}.");
+      } else {
+        foreach ($list as $p) {
+          if (!is_array($p)) continue;
+
+          $uid  = $p['uid'] ?? ($p['UID'] ?? null);
+          $name = $p['name'] ?? ($p['Name'] ?? 'Untitled');
+
+          if ($uid) {
+            $items[] = [
+              'provider'    => 'hostfully',
+              'external_id' => (string)$uid,
+
+              // Backwards-compat keys (your UI returns uid/name)
+              'uid'         => (string)$uid,
+              'name'        => $name,
+
+              // Keep payload for existing Hostfully importer
+              'payload'     => $p,
+            ];
+          }
+        }
+        $logger->log("Hostfully: queued " . count(array_filter($items, fn($i) => ($i['provider'] ?? '') === 'hostfully')) . " items.");
+      }
+
+      // If provider was specifically hostfully, keep source close to old behaviour
+      if ($provider === 'hostfully') {
+        $source = $hostfully_source;
+      } elseif ($provider === 'both') {
+        $source = 'both';
       }
     }
   }
 
-  if (empty($list)) {
-    $logger->log("No properties available for mode={$source}.");
-    $logger->save();
-    wp_send_json_error(['message' => 'No properties available for this agency/mode.'], 404);
-  }
+  /**
+   * LOGGIA QUEUE
+   * - Only if provider=loggia|both
+   */
+  if ($provider === 'loggia' || $provider === 'both') {
+    $base_url = $settings['loggiaBaseUrl'];
+    $api_key  = $settings['loggiaApiKey'];
+    $page_id  = $settings['loggiaPageId'];
 
-  // Build queue items
-  $items = [];
-  foreach ($list as $p) {
-    if (!is_array($p)) continue;
+    if (!$base_url || !$api_key || !$page_id) {
+      $logger->log('Loggia: missing base_url/api_key/page_id; skipping Loggia queue build.');
+    } else {
+      $loggia_importer = $GLOBALS['havenconnect']['loggia_importer'] ?? null;
+      if (!$loggia_importer || !is_object($loggia_importer) || !method_exists($loggia_importer, 'list_property_ids')) {
+        $logger->log('Loggia: loggia_importer not initialized; skipping Loggia queue build.');
+      } else {
+        $client_path = defined('HCN_PATH')
+          ? HCN_PATH . 'includes/providers/loggia/class-loggia-client.php'
+          : (plugin_dir_path(__FILE__) . 'providers/loggia/class-loggia-client.php');
 
-    $uid  = $p['uid'] ?? ($p['UID'] ?? null);
-    $name = $p['name'] ?? ($p['Name'] ?? 'Untitled');
+        if (file_exists($client_path)) {
+          require_once $client_path;
+        }
 
-    if ($uid) {
-      $items[] = [
-        'uid'     => $uid,
-        'name'    => $name,
-        'payload' => $p,
-      ];
+        if (!class_exists('HavenConnect_Loggia_Client')) {
+          $logger->log('Loggia: HavenConnect_Loggia_Client class not found; skipping.');
+        } else {
+          $client = new HavenConnect_Loggia_Client($base_url, $api_key, $logger);
+          $ids    = $loggia_importer->list_property_ids($client, $page_id);
+
+          if (empty($ids)) {
+            $logger->log('Loggia: no property ids returned.');
+          } else {
+            foreach ($ids as $id) {
+              $id = (string)$id;
+              if (!$id) continue;
+
+              $items[] = [
+                'provider'    => 'loggia',
+                'external_id' => $id,
+
+                // Backwards-compat keys (your UI expects uid/name)
+                'uid'         => $id,
+                'name'        => 'Loggia ' . $id,
+
+                // No payload needed for Loggia (fetch per property)
+                'payload'     => [],
+              ];
+            }
+            $logger->log('Loggia: queued ' . count($ids) . ' items.');
+          }
+        }
+      }
+    }
+
+    if ($provider === 'loggia') {
+      $source = 'loggia';
+    } elseif ($provider === 'both') {
+      $source = 'both';
     }
   }
 
   if (empty($items)) {
-    $logger->log('Properties returned but contained no valid UID.');
+    $logger->log("No properties queued for provider={$provider}.");
     $logger->save();
-    wp_send_json_error(['message' => 'Properties returned but no UIDs found.'], 422);
+    wp_send_json_error(['message' => 'No properties available (or credentials missing) for the selected provider(s).'], 404);
   }
 
   $job_id = hcn_ajax_new_job_id();
@@ -161,6 +249,7 @@ function hcn_import_start_handler() {
     'total'      => count($items),
     'done'       => 0,
     'source'     => $source,
+    'provider'   => $provider,
     'items'      => $items,
   ];
 
@@ -173,7 +262,13 @@ function hcn_import_start_handler() {
     'job_id'  => $job_id,
     'total'   => $queue['total'],
     'source'  => $source,
-    'items'   => array_map(fn($i) => ['uid' => $i['uid'], 'name' => $i['name']], $items),
+    'provider'=> $provider,
+    // keep UI shape stable: uid/name (and add provider if you want to show it)
+    'items'   => array_map(fn($i) => [
+      'uid'      => $i['uid'] ?? ($i['external_id'] ?? ''),
+      'name'     => $i['name'] ?? '',
+      'provider' => $i['provider'] ?? 'hostfully',
+    ], $items),
     'message' => 'Queue created successfully.',
   ]);
 }
@@ -209,60 +304,110 @@ function hcn_import_single_handler() {
   }
 
   $hc = $GLOBALS['havenconnect'] ?? null;
-  if (!is_array($hc) || empty($hc['logger']) || empty($hc['importer'])) {
+  if (!is_array($hc) || empty($hc['logger'])) {
     wp_send_json_error(['message' => 'HavenConnect singletons not initialized.'], 500);
   }
 
   /** @var HavenConnect_Logger $logger */
   $logger = $hc['logger'];
-  /** @var HavenConnect_Property_Importer $importer */
-  $importer = $hc['importer'];
 
   $settings = hcn_ajax_get_settings();
-  $apiKey   = $settings['apiKey'];
 
-  if (!$apiKey) {
-    $logger->log('Missing API key.');
-    $logger->save();
-    wp_send_json_error(['message' => 'Missing API key'], 400);
-  }
-
-  $item = $queue['items'][$index];
-  $p    = $item['payload'];
-  $uid  = $item['uid'];
-  $name = $item['name'];
+  $item      = $queue['items'][$index];
+  $provider  = $item['provider'] ?? 'hostfully';
+  $external  = (string)($item['external_id'] ?? ($item['uid'] ?? ''));
+  $uid       = (string)($item['uid'] ?? $external);
+  $name      = (string)($item['name'] ?? $external);
+  $p         = is_array($item['payload'] ?? null) ? $item['payload'] : [];
 
   try {
-    $logger->log("Importing {$name} ({$uid}) …");
+    $logger->log("Importing {$name} ({$provider}:{$external}) …");
 
-    // Reuse existing importer method; it accepts payload arrays with uid/name present.
-    $post_id = $importer->import_property_from_featured($apiKey, $p);
+    $post_id = 0;
+
+    if ($provider === 'hostfully') {
+      if (empty($hc['importer'])) {
+        wp_send_json_error(['message' => 'Hostfully importer not initialized.'], 500);
+      }
+
+      /** @var HavenConnect_Property_Importer $importer */
+      $importer = $hc['importer'];
+
+      $apiKey = $settings['apiKey'];
+      if (!$apiKey) {
+        $logger->log('Missing Hostfully API key.');
+        $logger->save();
+        wp_send_json_error(['message' => 'Missing Hostfully API key'], 400);
+      }
+
+      // Reuse existing importer method; it accepts payload arrays with uid/name present.
+      $post_id = $importer->import_property_from_featured($apiKey, $p);
+
+    } elseif ($provider === 'loggia') {
+      $loggia_importer = $GLOBALS['havenconnect']['loggia_importer'] ?? null;
+      if (!$loggia_importer || !is_object($loggia_importer) || !method_exists($loggia_importer, 'import_one')) {
+        wp_send_json_error(['message' => 'Loggia importer not initialized.'], 500);
+      }
+
+      $base_url = $settings['loggiaBaseUrl'];
+      $api_key  = $settings['loggiaApiKey'];
+      $page_id  = $settings['loggiaPageId'];
+      $locale   = $settings['loggiaLocale'] ?: 'en';
+
+      if (!$base_url || !$api_key || !$page_id) {
+        $logger->log('Missing Loggia settings (base_url/api_key/page_id).');
+        $logger->save();
+        wp_send_json_error(['message' => 'Missing Loggia settings'], 400);
+      }
+
+      $client_path = defined('HCN_PATH')
+        ? HCN_PATH . 'includes/providers/loggia/class-loggia-client.php'
+        : (plugin_dir_path(__FILE__) . 'providers/loggia/class-loggia-client.php');
+
+      if (file_exists($client_path)) {
+        require_once $client_path;
+      }
+
+      if (!class_exists('HavenConnect_Loggia_Client')) {
+        $logger->log('Loggia client class not found.');
+        $logger->save();
+        wp_send_json_error(['message' => 'Loggia client class not found'], 500);
+      }
+
+      $client = new HavenConnect_Loggia_Client($base_url, $api_key, $logger);
+      $post_id = (int)$loggia_importer->import_one($client, $external, $page_id, $locale);
+
+    } else {
+      wp_send_json_error(['message' => 'Unknown provider: ' . $provider], 400);
+    }
 
     $queue['done'] = max((int)$queue['done'], $index + 1);
     set_transient($key, $queue, 2 * HOUR_IN_SECONDS);
 
-    $logger->log("Imported {$name} (post_id={$post_id})");
+    $logger->log("Imported {$name} (provider={$provider}, post_id={$post_id})");
     $logger->save();
 
     wp_send_json_success([
-      'index'   => $index,
-      'uid'     => $uid,
-      'name'    => $name,
-      'post_id' => $post_id,
-      'done'    => $queue['done'],
-      'total'   => $queue['total'],
-      'message' => "Imported {$name}",
+      'index'    => $index,
+      'uid'      => $uid,
+      'name'     => $name,
+      'provider' => $provider,
+      'post_id'  => $post_id,
+      'done'     => $queue['done'],
+      'total'    => $queue['total'],
+      'message'  => "Imported {$name}",
     ]);
 
   } catch (Throwable $e) {
-    $logger->log("ERROR importing {$uid}: " . $e->getMessage());
+    $logger->log("ERROR importing {$provider}:{$external}: " . $e->getMessage());
     $logger->save();
 
     wp_send_json_error([
-      'index'   => $index,
-      'uid'     => $uid,
-      'name'    => $name,
-      'message' => $e->getMessage(),
+      'index'    => $index,
+      'uid'      => $uid,
+      'name'     => $name,
+      'provider' => $provider,
+      'message'  => $e->getMessage(),
     ], 500);
   }
 }
@@ -298,7 +443,7 @@ function hcn_import_finish_handler() {
  * LIVE LOG — fetch current log text for polling
  *
  * POST params:
- * - tail: optional int, return only last N characters (default 12000)
+ * - offset: optional int, return only from offset (default 0)
  */
 function hcn_get_log_handler() {
   if (!current_user_can('manage_options')) {
