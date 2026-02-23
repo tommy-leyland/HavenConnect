@@ -80,24 +80,32 @@ document.addEventListener("DOMContentLoaded", () => {
     listEl.appendChild(div);
   }
 
-  async function post(data) {
-    const fd = new FormData();
-    Object.entries(data).forEach(([k, v]) => fd.append(k, v));
+async function post(data) {
+  const fd = new FormData();
+  Object.entries(data).forEach(([k, v]) => fd.append(k, v));
 
-    const res = await fetch(ajaxUrl, {
-      method: "POST",
-      credentials: "same-origin",
-      body: fd,
-    });
+  const res = await fetch(ajaxUrl, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-Requested-With": "XMLHttpRequest" },
+    body: fd,
+  });
 
-    const json = await res.json().catch(() => null);
-    if (!json || !json.success) {
-      const msg =
-        json && json.data && json.data.message ? json.data.message : "Request failed";
-      throw new Error(msg);
-    }
-    return json.data;
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const text = await res.text();
+
+  if (!ct.includes("application/json")) {
+    throw new Error(`Non-JSON response ${res.status}: ${text.slice(0, 200)}`);
   }
+
+  const json = JSON.parse(text);
+  if (!json || !json.success) {
+    const msg = (json && json.data && json.data.message) ? json.data.message : "Request failed";
+    throw new Error(msg);
+  }
+
+  return json.data;
+}
 
   async function pollLog() {
     if (polling) return;

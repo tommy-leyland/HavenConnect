@@ -420,6 +420,8 @@ function hcn_import_single_handler() {
   } catch (Throwable $e) {
     $logger->log("ERROR importing {$provider}:{$external}: " . $e->getMessage());
     $logger->save();
+    $logger->log($e->getTraceAsString());
+    $logger->save();
 
     wp_send_json_error([
       'index'    => $index,
