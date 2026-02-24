@@ -76,6 +76,24 @@ class HavenConnect_Search_Shortcode {
     return $min !== null ? (float)$min : null;
   }
 
+  private function hcn_get_card_image_url(int $post_id): string {
+    // 1) explicit thumb (fast)
+    $thumb = (string) get_post_meta($post_id, '_hcn_featured_thumb_url', true);
+    if ($thumb) return $thumb;
+
+    // 2) explicit featured (may be large)
+    $featured = (string) get_post_meta($post_id, '_hcn_featured_image_url', true);
+    if ($featured) return $featured;
+
+    // 3) WP attachment fallback
+    $thumb_id = get_post_thumbnail_id($post_id);
+    if ($thumb_id) {
+      // Use 'medium' for tiles (good balance). Change to 'thumbnail' if you want even faster.
+      return (string) (wp_get_attachment_image_url($thumb_id, 'medium') ?: '');
+    }
+    return '';
+  }
+
   private function hcn_min_price_for_post(int $post_id, string $checkin = '', string $checkout = ''): ?float {
     global $wpdb;
     $table = $wpdb->prefix . 'hcn_availability';
@@ -157,7 +175,7 @@ class HavenConnect_Search_Shortcode {
     }
 
     ob_start();
-    echo '<div class="hcn-results" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px;">';
+    echo '<div class="hcn-results" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px;">';
 
     while ($q->have_posts()) {
       $q->the_post();
@@ -170,7 +188,7 @@ class HavenConnect_Search_Shortcode {
       $ba = get_post_meta($pid, 'bathrooms', true);
       $sl = get_post_meta($pid, 'sleeps', true);
 
-      $featured = (string) get_post_meta($pid, '_hcn_featured_image_url', true);
+      $featured = $this->hcn_get_card_image_url((int)$pid);
       if (!$featured) {
         $thumb_id = get_post_thumbnail_id($pid);
         if ($thumb_id) $featured = wp_get_attachment_image_url($thumb_id, 'large') ?: '';
@@ -202,7 +220,7 @@ class HavenConnect_Search_Shortcode {
       echo '<article class="hcn-tile">';
         echo '<a class="hcn-tile__media" href="' . esc_url(get_permalink($pid)) . '">';
           if ($featured) {
-            echo '<img src="' . esc_url($featured) . '" alt="' . esc_attr(get_the_title()) . '">';
+            echo '<img src="' . esc_url($featured) . '" alt="' . esc_attr(get_the_title()) . '" loading="lazy" decoding="async">';
           } else {
             echo '<div class="hcn-tile__ph"></div>';
           }

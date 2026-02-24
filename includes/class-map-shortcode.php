@@ -35,19 +35,19 @@ class HavenConnect_Map_Shortcode {
     );
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(__DIR__) . '/';
-    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.0.1', true);
-    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.0.1');
+    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.0.9', true);
+    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.0.9');
 
     $nonce = wp_create_nonce('hcn_map_nonce');
 
     ob_start(); ?>
-      <div class="hcn-map-wrap"
-          data-ajax="<?php echo esc_attr(admin_url('admin-ajax.php')); ?>"
-          data-nonce="<?php echo esc_attr($nonce); ?>"
-          data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>">
-        <div id="hcn-map" style="width:100%;height:<?php echo esc_attr($atts['height']); ?>;border:1px solid #ddd;border-radius:12px;"></div>
-        <div class="hcn-map-popover"></div>
-      </div>
+<div class="hcn-map-wrap"
+     data-ajax="<?php echo esc_attr(admin_url('admin-ajax.php')); ?>"
+     data-nonce="<?php echo esc_attr($nonce); ?>"
+     data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>">
+  <div id="hcn-map" style="width:100%;height:100vh; ?>;"></div>
+  <div class="hcn-map-popover"></div>
+</div>
     <?php
     return ob_get_clean();
   }
@@ -77,6 +77,7 @@ class HavenConnect_Map_Shortcode {
     if ($bedrooms > 0)  $meta_query[] = ['key'=>'bedrooms','value'=>$bedrooms,'type'=>'NUMERIC','compare'=>'>='];
     if ($bathrooms > 0) $meta_query[] = ['key'=>'bathrooms','value'=>$bathrooms,'type'=>'NUMERIC','compare'=>'>='];
     if ($meta_query) $args['meta_query'] = $meta_query;
+    
 
     // Availability IDs (same logic as your search shortcode: strict rows per night unavailable=0)
     if ($checkin && $checkout) {
@@ -172,6 +173,20 @@ class HavenConnect_Map_Shortcode {
 
       $uid = (string)get_post_meta($pid, '_havenconnect_uid', true);
 
+      // 1) explicit thumb meta (fast)
+      $thumb = (string) get_post_meta($pid, '_hcn_featured_thumb_url', true);
+
+      // 2) fallback to featured image url (might be large)
+      if (!$thumb) $thumb = (string) get_post_meta($pid, '_hcn_featured_image_url', true);
+
+      // 3) fallback to WP attachment size
+      if (!$thumb) {
+        $thumb_id = get_post_thumbnail_id($pid);
+        if ($thumb_id) {
+          $thumb = wp_get_attachment_image_url($thumb_id, 'thumbnail') ?: '';
+        }
+      }
+
       $items[] = [
         'post_id'   => (int)$pid,
         'uid'       => $uid,
@@ -185,7 +200,9 @@ class HavenConnect_Map_Shortcode {
         // Optional cached display (if you later store it):
         'from' => isset($price_map[$pid]) ? round($price_map[$pid], 0) : '',
         'currency'  => (string)(get_post_meta($pid, 'currency', true) ?: 'GBP'),
-        'thumb'     => get_the_post_thumbnail_url($pid, 'medium') ?: '',
+        'thumb' => $thumb,
+        'provider' => (string) get_post_meta($pid, 'hcn_source', true) ?: 'hostfully',
+        'uid'      => (string) get_post_meta($pid, 'hostfully_uid', true), // only if you have this meta; otherwise leave as existing
       ];
     }
 

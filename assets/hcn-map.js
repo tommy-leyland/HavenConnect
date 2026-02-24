@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   };
 
-  // ---------- Popover overlay (one instance, reused) ----------
+  // ---------- Popover overlay ----------
   class PopoverOverlay extends google.maps.OverlayView {
     constructor(map, el) {
       super();
@@ -32,52 +32,41 @@ document.addEventListener("DOMContentLoaded", () => {
       this.pos = null;
       this.setMap(map);
 
-      // Close button (delegated)
       this.el.addEventListener("click", (e) => {
-        const btn = e.target.closest("[data-hcn-close]");
-        if (btn) this.hide();
+        if (e.target.closest("[data-hcn-close]")) this.hide();
       });
     }
-
     onAdd() {
-      const panes = this.getPanes();
-      panes.floatPane.appendChild(this.el);
+      this.getPanes().floatPane.appendChild(this.el);
       this.el.style.position = "absolute";
       this.el.style.display = "none";
     }
-
     draw() {
       if (!this.pos) return;
       const proj = this.getProjection();
       if (!proj) return;
-
       const p = proj.fromLatLngToDivPixel(this.pos);
       if (!p) return;
-
-      // Centered above pin
       this.el.style.left = `${p.x}px`;
       this.el.style.top = `${p.y}px`;
     }
-
     show(latLng, html) {
       this.pos = latLng;
       this.el.innerHTML = html;
       this.el.style.display = "block";
       this.draw();
-
-      // Reposition after images load (so height is correct)
       const img = this.el.querySelector("img");
       if (img) img.addEventListener("load", () => this.draw(), { once: true });
     }
-
     hide() {
       this.pos = null;
       this.el.style.display = "none";
       this.el.innerHTML = "";
+      document.querySelectorAll(".hcn-price-pill.is-active").forEach(el => el.classList.remove("is-active"));
     }
   }
 
-  // ---------- Price pill overlay (many instances) ----------
+  // ---------- Price pill overlay ----------
   class PricePillOverlay extends google.maps.OverlayView {
     constructor(map, item, onClick) {
       super();
@@ -85,44 +74,37 @@ document.addEventListener("DOMContentLoaded", () => {
       this.item = item;
       this.onClick = onClick;
       this.pos = new google.maps.LatLng(item.lat, item.lng);
+
       this.el = document.createElement("button");
       this.el.type = "button";
       this.el.className = "hcn-price-pill";
       this.el.textContent = item.from ? `£${item.from}` : "£—";
+
       this.el.addEventListener("click", (e) => {
         e.preventDefault();
-        // clear active from all pills
         document.querySelectorAll(".hcn-price-pill.is-active").forEach(el => el.classList.remove("is-active"));
-        // set active on this one
         this.el.classList.add("is-active");
-
         this.onClick(this.item, this.pos, this);
       });
+
       this.setMap(map);
     }
-
     onAdd() {
-      const panes = this.getPanes();
-      panes.overlayMouseTarget.appendChild(this.el);
+      this.getPanes().overlayMouseTarget.appendChild(this.el);
       this.el.style.position = "absolute";
     }
-
     draw() {
       const proj = this.getProjection();
       if (!proj) return;
       const p = proj.fromLatLngToDivPixel(this.pos);
       if (!p) return;
-
-      // Center pill on location
       this.el.style.left = `${p.x}px`;
       this.el.style.top = `${p.y}px`;
       this.el.style.transform = "translate(-50%, -50%)";
     }
-
     onRemove() {
-      if (this.el && this.el.parentNode) this.el.parentNode.removeChild(this.el);
+      if (this.el?.parentNode) this.el.parentNode.removeChild(this.el);
     }
-
     setLabelText(text) {
       this.el.textContent = text;
     }
@@ -137,21 +119,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const pop = new PopoverOverlay(map, popEl);
-
   let pills = [];
 
-  async function postAjax(formData) {
-    const res = await fetch(ajaxUrl, {
-      method: "POST",
-      credentials: "same-origin",
-      body: formData,
-    });
-    const json = await res.json();
-    return json;
+  async function postAjax(fd) {
+    const res = await fetch(ajaxUrl, { method: "POST", credentials: "same-origin", body: fd });
+    return res.json();
   }
 
   function cardHtml(item) {
-    // Card matches your design (image left, close, title, icons, price)
     return `
       <div class="hcn-pop">
         <button class="hcn-pop__close" type="button" data-hcn-close aria-label="Close">×</button>
@@ -172,8 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchMarkers() {
-    // clear old overlays
-    pills.forEach((p) => p.setMap(null));
+    pills.forEach(p => p.setMap(null));
     pills = [];
     pop.hide();
 
@@ -185,20 +159,17 @@ document.addEventListener("DOMContentLoaded", () => {
     Object.entries(filters).forEach(([k, v]) => fd.append(k, v));
 
     const json = await postAjax(fd);
-    const items = json?.success?.data?.items || [];
-
+    const items = json?.data?.items || [];
     if (!items.length) return;
 
     const bounds = new google.maps.LatLngBounds();
 
     items.forEach((item) => {
-      // pill click
       const pill = new PricePillOverlay(map, item, async (it, latLng, pillInstance) => {
         pop.show(latLng, cardHtml(it));
 
-        // If dates are present and uid exists, quote Hostfully (keeps current behavior)
         const f = getFiltersFromUrl();
-        if (f.checkin && f.checkout && it.uid) {
+        if (f.checkin && f.checkout && it.provider === "hostfully" && it.uid) {
           const qfd = new FormData();
           qfd.append("action", "hcn_quote_nightly");
           qfd.append("nonce", nonce);
@@ -208,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
           qfd.append("guests", f.guests || "");
 
           const qjson = await postAjax(qfd);
-          if (qjson?.success?.data?.perNight) {
+          if (qjson?.data?.perNight) {
             const perNight = qjson.data.perNight;
             const priceEl = popEl.querySelector(".hcn-price");
             if (priceEl) priceEl.innerHTML = `From <strong>${formatGBP(perNight)}</strong> per night`;

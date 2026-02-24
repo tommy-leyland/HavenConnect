@@ -108,4 +108,16 @@
   color:#163a63;
   font-weight:700;
   text-decoration:none;
+}
+
+.elementor-widget-shortcode:has(.hcn-map-wrap) {
+    height: 100%;
+}
+
+.elementor-shortcode:has(.hcn-map-wrap) {
+    height: 100%;
+}
+
+.hcn-map-wrap {
+    height: 100%;
 }
