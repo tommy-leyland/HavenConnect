@@ -201,6 +201,28 @@ async function post(data) {
     const singleEl = box.querySelector('[data-role="single-id"]');
     const singleId = singleEl ? (singleEl.value || "").trim() : "";
 
+    // --- Loggia: Sync availability/pricing (no queue) ---
+    if (action === "sync-avail") {
+      const fromEl = box.querySelector('[data-role="avail-from"]');
+      const toEl   = box.querySelector('[data-role="avail-to"]');
+      const from = fromEl && fromEl.value ? fromEl.value : "";
+      const to   = toEl && toEl.value ? toEl.value : "";
+
+      const pid = (singleId || "").trim();
+      if (!pid) throw new Error("Enter a Loggia property ID first (use the ‘Test single ID’ box).");
+
+      const res = await post({
+        action: "hcn_loggia_availability_sync",
+        nonce,
+        property_id: pid,
+        from,
+        to
+      });
+
+      alert(res.message || "Availability sync complete.");
+      return;
+    }
+
     if (action === "run-single" && !singleId) {
       alert("Enter an ID/UID first.");
       return;

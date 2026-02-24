@@ -111,7 +111,7 @@ class HavenConnect_Admin {
 	'hcn-admin-import',
 	plugin_dir_url(__FILE__) . '../assets/hcn-admin-import.js',
 	[],
-	'1.3.3',
+	'1.3.5',
 	true
 	);
 
@@ -241,6 +241,18 @@ class HavenConnect_Admin {
                 <input data-role="single-id" type="text" placeholder="Loggia property id…" style="width:420px; max-width:100%;" <?php echo $has_loggia ? '' : 'disabled'; ?>>
                 <button class="button" data-action="run-single" <?php echo $has_loggia ? '' : 'disabled'; ?>>Run Single</button>
               </div>
+
+              <hr style="margin:14px 0;">
+
+              <div class="hcn-row">
+                <label><strong>Sync availability/pricing</strong></label>
+                <input data-role="avail-from" type="date" style="width:170px;">
+                <input data-role="avail-to" type="date" style="width:170px;">
+                <button class="button" data-action="sync-avail">Sync Availability</button>
+              </div>
+              <p class="hcn-muted" style="margin:8px 0 0;">
+                Imports nightly prices + availability into the shared availability table (used for “From price” + date searches).
+              </p>
 
             </div>
           </div>

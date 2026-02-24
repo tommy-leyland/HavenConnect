@@ -45,6 +45,7 @@ add_action('init', function () {
   add_action('wp_ajax_hcn_get_log', 'hcn_get_log_handler');
   add_action('wp_ajax_hcn_loggia_test', 'hcn_loggia_test_handler');
   add_action('wp_ajax_hcn_ping', 'hcn_ping_handler');
+  add_action('wp_ajax_hcn_loggia_availability_sync', 'hcn_loggia_availability_sync_handler');
 });
 
 /**
@@ -97,6 +98,8 @@ function hcn_import_start_handler() {
 
   $items  = [];
   $source = $provider;
+
+
 
   /**
    * HOSTFULLY QUEUE
@@ -472,6 +475,93 @@ function hcn_import_finish_handler() {
 
   wp_send_json_success(['message' => 'Import completed']);
 }
+
+  function hcn_loggia_availability_sync_handler() {
+    if (!current_user_can('manage_options')) {
+      wp_send_json_error(['message' => 'Unauthorized'], 403);
+    }
+    check_ajax_referer('hcn_import_nonce', 'nonce');
+
+    $hc = $GLOBALS['havenconnect'] ?? null;
+    if (!is_array($hc) || empty($hc['logger'])) {
+      wp_send_json_error(['message' => 'Logger not available.'], 500);
+    }
+    /** @var HavenConnect_Logger $logger */
+    $logger = $hc['logger'];
+
+    $opts = get_option('havenconnect_settings', []);
+    $base_url = trim($opts['loggia_base_url'] ?? '');
+    $api_key  = trim($opts['loggia_api_key'] ?? '');
+    $page_id  = trim($opts['loggia_page_id'] ?? '');
+    $locale   = trim($opts['loggia_locale'] ?? 'en');
+
+    $property_id = sanitize_text_field($_POST['property_id'] ?? '');
+    $post_id     = isset($_POST['post_id']) ? (int)$_POST['post_id'] : 0;
+    $from        = sanitize_text_field($_POST['from'] ?? '');
+    $to          = sanitize_text_field($_POST['to'] ?? '');
+
+    if (!$base_url || !$api_key || !$page_id) {
+      wp_send_json_error(['message' => 'Missing Loggia settings (base_url/api_key/page_id).'], 400);
+    }
+    if (!$property_id) {
+      wp_send_json_error(['message' => 'Missing property_id'], 400);
+    }
+
+    // Resolve post_id if not provided
+    if (!$post_id) {
+      $q = new WP_Query([
+        'post_type'      => 'hcn_property',
+        'post_status'    => 'any',
+        'fields'         => 'ids',
+        'posts_per_page' => 1,
+        'meta_query'     => [
+          ['key' => 'loggia_property_id', 'value' => $property_id],
+        ],
+      ]);
+      $post_id = !empty($q->posts[0]) ? (int)$q->posts[0] : 0;
+    }
+    if (!$post_id) {
+      wp_send_json_error(['message' => 'Could not find WP post for this loggia_property_id'], 404);
+    }
+
+    // Load client
+    $client_path = defined('HCN_PATH')
+      ? HCN_PATH . 'includes/providers/loggia/class-loggia-client.php'
+      : (plugin_dir_path(__FILE__) . 'providers/loggia/class-loggia-client.php');
+    if (file_exists($client_path)) require_once $client_path;
+
+    if (!class_exists('HavenConnect_Loggia_Client')) {
+      wp_send_json_error(['message' => 'Loggia client class not found.'], 500);
+    }
+
+    // Availability importer class (the one you created in step 2)
+    $avail_path = defined('HCN_PATH')
+      ? HCN_PATH . 'includes/providers/loggia/class-loggia-availability-importer.php'
+      : (plugin_dir_path(__FILE__) . 'providers/loggia/class-loggia-availability-importer.php');
+    if (file_exists($avail_path)) require_once $avail_path;
+
+    if (!class_exists('HavenConnect_Loggia_Availability_Importer')) {
+      wp_send_json_error(['message' => 'Loggia availability importer class not found.'], 500);
+    }
+
+    $client = new HavenConnect_Loggia_Client($base_url, $api_key, $logger);
+    $imp    = new HavenConnect_Loggia_Availability_Importer($logger);
+
+    // Default range if none provided
+    if (!$from) $from = gmdate('Y-m-d');
+    if (!$to)   $to   = gmdate('Y-m-d', strtotime('+365 days'));
+
+    $rows = $imp->import_range($client, $page_id, $locale, $from, $to);
+
+    wp_send_json_success([
+      'message' => "Loggia availability imported ({$rows} rows).",
+      'rows'    => (int)$rows,
+      'post_id' => $post_id,
+      'property_id' => $property_id,
+      'from' => $from,
+      'to' => $to,
+    ]);
+  }
 
 /**
  * LIVE LOG — fetch current log text for polling
