@@ -33,6 +33,88 @@ class HavenConnect_Search_Shortcode {
     ]);
   }
 
+  private function get_from_price(int $post_id, string $checkin = '', string $checkout = ''): ?float {
+    global $wpdb;
+    $table = $wpdb->prefix . 'hcn_availability';
+
+    // If table missing, bail
+    $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
+    if ($exists !== $table) return null;
+
+    // If dates selected, use that range (nights only: >= checkin and < checkout)
+    if ($checkin && $checkout) {
+      $in  = strtotime($checkin);
+      $out = strtotime($checkout);
+      if ($in && $out && $out > $in) {
+        $sql = $wpdb->prepare(
+          "SELECT MIN(price)
+          FROM {$table}
+          WHERE post_id = %d
+            AND unavailable = 0
+            AND price IS NOT NULL
+            AND for_date >= %s
+            AND for_date < %s",
+          $post_id,
+          gmdate('Y-m-d', $in),
+          gmdate('Y-m-d', $out)
+        );
+        $min = $wpdb->get_var($sql);
+        return $min !== null ? (float)$min : null;
+      }
+    }
+
+    // No dates selected: lowest known nightly price for that property
+    $sql = $wpdb->prepare(
+      "SELECT MIN(price)
+      FROM {$table}
+      WHERE post_id = %d
+        AND unavailable = 0
+        AND price IS NOT NULL",
+      $post_id
+    );
+    $min = $wpdb->get_var($sql);
+    return $min !== null ? (float)$min : null;
+  }
+
+  private function hcn_min_price_for_post(int $post_id, string $checkin = '', string $checkout = ''): ?float {
+    global $wpdb;
+    $table = $wpdb->prefix . 'hcn_availability';
+
+    // With dates: nights are >= checkin and < checkout
+    if ($checkin && $checkout) {
+      $in  = strtotime($checkin);
+      $out = strtotime($checkout);
+      if ($in && $out && $out > $in) {
+        $sql = $wpdb->prepare(
+          "SELECT MIN(price)
+          FROM {$table}
+          WHERE post_id = %d
+            AND unavailable = 0
+            AND price IS NOT NULL
+            AND for_date >= %s
+            AND for_date < %s",
+          $post_id,
+          gmdate('Y-m-d', $in),
+          gmdate('Y-m-d', $out)
+        );
+        $min = $wpdb->get_var($sql);
+        return $min !== null ? (float)$min : null;
+      }
+    }
+
+    // No dates: lowest known nightly price for this property
+    $sql = $wpdb->prepare(
+      "SELECT MIN(price)
+      FROM {$table}
+      WHERE post_id = %d
+        AND unavailable = 0
+        AND price IS NOT NULL",
+      $post_id
+    );
+    $min = $wpdb->get_var($sql);
+    return $min !== null ? (float)$min : null;
+  }
+
   private function build_results_html(string $checkin, string $checkout, int $guests, int $bedrooms, float $bathrooms, int $per_page): string {
 
     $args = [
@@ -167,9 +249,9 @@ class HavenConnect_Search_Shortcode {
           }
 
           // Optional price meta if you have it later:
-          $price_from = (string) get_post_meta($pid, 'price_from', true);
-          if ($price_from) {
-            echo '<div class="hcn-tile__price">From <strong>' . esc_html($price_from) . '</strong> per night</div>';
+          $min_price = $this->get_from_price($pid, $checkin, $checkout);
+          if ($min_price !== null && $min_price > 0) {
+            echo '<div class="hcn-tile__price">From <strong>£' . esc_html(number_format($min_price, 0)) . '</strong> per night</div>';
           }
         echo '</div>';
       echo '</article>';

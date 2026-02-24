@@ -35,22 +35,18 @@ class HavenConnect_Map_Shortcode {
     );
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(__DIR__) . '/';
-    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.0.0', true);
+    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.0.1', true);
+    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.0.1');
 
     $nonce = wp_create_nonce('hcn_map_nonce');
 
     ob_start(); ?>
       <div class="hcn-map-wrap"
-           data-ajax="<?php echo esc_attr(admin_url('admin-ajax.php')); ?>"
-           data-nonce="<?php echo esc_attr($nonce); ?>"
-           data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>"
-           style="display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start;">
-
+          data-ajax="<?php echo esc_attr(admin_url('admin-ajax.php')); ?>"
+          data-nonce="<?php echo esc_attr($nonce); ?>"
+          data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>">
         <div id="hcn-map" style="width:100%;height:<?php echo esc_attr($atts['height']); ?>;border:1px solid #ddd;border-radius:12px;"></div>
-
-        <div class="hcn-map-card" style="border:1px solid #ddd;border-radius:12px;padding:12px;min-height:120px;background:#fff;">
-          <div class="hcn-map-card-inner" style="color:#666;">Click a marker to view details.</div>
-        </div>
+        <div class="hcn-map-popover"></div>
       </div>
     <?php
     return ob_get_clean();
@@ -118,6 +114,56 @@ class HavenConnect_Map_Shortcode {
     $q = new WP_Query($args);
     $post_ids = $q->posts ?: [];
 
+    // Build a from-price map for returned posts using the same availability table
+    $price_map = [];
+    if (!empty($post_ids)) {
+      global $wpdb;
+      $table = $wpdb->prefix . 'hcn_availability';
+
+      $in  = $checkin ? strtotime($checkin) : 0;
+      $out = $checkout ? strtotime($checkout) : 0;
+
+      // IN (%d,%d,...) for post ids
+      $placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+      $args = array_map('intval', $post_ids);
+
+      if ($in && $out && $out > $in) {
+        $args[] = gmdate('Y-m-d', $in);
+        $args[] = gmdate('Y-m-d', $out);
+
+        $sql = $wpdb->prepare(
+          "SELECT post_id, MIN(price) AS min_price
+          FROM {$table}
+          WHERE post_id IN ($placeholders)
+            AND unavailable = 0
+            AND price IS NOT NULL
+            AND for_date >= %s
+            AND for_date < %s
+          GROUP BY post_id",
+          $args
+        );
+      } else {
+        $sql = $wpdb->prepare(
+          "SELECT post_id, MIN(price) AS min_price
+          FROM {$table}
+          WHERE post_id IN ($placeholders)
+            AND unavailable = 0
+            AND price IS NOT NULL
+          GROUP BY post_id",
+          $args
+        );
+      }
+
+      $rows = $wpdb->get_results($sql, ARRAY_A);
+      if (is_array($rows)) {
+        foreach ($rows as $r) {
+          $pid = (int)($r['post_id'] ?? 0);
+          $mp  = $r['min_price'] ?? null;
+          if ($pid && $mp !== null) $price_map[$pid] = (float)$mp;
+        }
+      }
+    }
+
     $items = [];
     foreach ($post_ids as $pid) {
       $lat = get_post_meta($pid, 'latitude', true);
@@ -137,7 +183,7 @@ class HavenConnect_Map_Shortcode {
         'bedrooms'  => (int)get_post_meta($pid, 'bedrooms', true),
         'bathrooms' => (float)get_post_meta($pid, 'bathrooms', true),
         // Optional cached display (if you later store it):
-        'from'      => (string)get_post_meta($pid, 'price_from_nightly', true), // e.g. "195"
+        'from' => isset($price_map[$pid]) ? round($price_map[$pid], 0) : '',
         'currency'  => (string)(get_post_meta($pid, 'currency', true) ?: 'GBP'),
         'thumb'     => get_the_post_thumbnail_url($pid, 'medium') ?: '',
       ];
