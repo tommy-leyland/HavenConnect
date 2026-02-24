@@ -71,6 +71,28 @@ class HavenConnect_Loggia_Client {
     return $this->external_api($action);
   }
 
+  public function list_properties_v2(
+    string $page_id,
+    string $locale,
+    string $dateFrom,
+    string $dateTo,
+    int $offset = 0,
+    int $limit = 50,
+    bool $group_chains = false
+  ) : ?array {
+    $action =
+      "/api/lodge/properties/list/data/v2"
+      . "?offset=" . (int)$offset
+      . "&limit=" . (int)$limit
+      . "&group_chains=" . ($group_chains ? 'true' : 'false')
+      . "&dateFrom=" . rawurlencode($dateFrom)
+      . "&dateTo=" . rawurlencode($dateTo)
+      . "&page_id=" . rawurlencode($page_id)
+      . "&locale=" . rawurlencode($locale);
+
+    return $this->external_api($action);
+  }
+
   public function get_summary(string $property_id, string $page_id, string $locale) : ?array {
     $action = "/api/lodge/properties/summary?property_id=" . rawurlencode($property_id)
       . "&page_id=" . rawurlencode($page_id)

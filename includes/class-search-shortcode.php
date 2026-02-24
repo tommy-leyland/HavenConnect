@@ -79,7 +79,7 @@ class HavenConnect_Search_Shortcode {
 
     while ($q->have_posts()) {
       $q->the_post();
-      $pid = get_the_ID();
+      $pid = get_the_ID(); 
 
       $space = (string) get_post_meta($pid, 'property_space', true);
       $neigh = (string) get_post_meta($pid, 'property_neighbourhood', true);
@@ -88,15 +88,90 @@ class HavenConnect_Search_Shortcode {
       $ba = get_post_meta($pid, 'bathrooms', true);
       $sl = get_post_meta($pid, 'sleeps', true);
 
-      echo '<article style="border:1px solid #ddd;padding:12px;border-radius:10px;">';
-      echo '<h3 style="margin:0 0 8px 0;">' . esc_html(get_the_title()) . '</h3>';
-      echo '<div style="color:#666;font-size:13px;margin-bottom:8px;">' . esc_html(wp_trim_words(get_the_excerpt(), 20)) . '</div>';
+      $featured = (string) get_post_meta($pid, '_hcn_featured_image_url', true);
+      if (!$featured) {
+        $thumb_id = get_post_thumbnail_id($pid);
+        if ($thumb_id) $featured = wp_get_attachment_image_url($thumb_id, 'large') ?: '';
+      }
 
-      echo '<div style="margin-top:8px;color:#444;font-size:13px;">' . esc_html("Sleeps {$sl} • {$bd} bedrooms • {$ba} baths") . '</div>';
+      $gallery = get_post_meta($pid, '_hcn_gallery_urls', true);
+      if (!is_array($gallery)) $gallery = [];
+      $gallery_count = count($gallery);
 
-      if ($space) echo '<div style="margin-top:8px;"><strong>The space:</strong> ' . esc_html(wp_trim_words($space, 18)) . '</div>';
-      if ($neigh) echo '<div style="margin-top:6px;"><strong>Neighbourhood:</strong> ' . esc_html(wp_trim_words($neigh, 18)) . '</div>';
+      $location_line = (string) get_post_meta($pid, 'city', true);
+      $state_line    = (string) get_post_meta($pid, 'state', true);
+      $country_line  = (string) get_post_meta($pid, 'country', true);
+      $sub = trim(implode(', ', array_filter([$location_line, $state_line, $country_line])));
 
+      // two “feature pills” (using your hcn_feature taxonomy)
+      $pills = [];
+      $terms = get_the_terms($pid, 'hcn_feature');
+      if (is_array($terms)) {
+        $terms = array_values($terms);
+        for ($i=0; $i < min(2, count($terms)); $i++) {
+          $pills[] = $terms[$i]->name;
+        }
+      }
+
+      // badge + favourite (optional metas; if empty, hidden by CSS)
+      $badge = (string) get_post_meta($pid, 'promo_badge', true); // e.g. "Summer offer: 20% off"
+      $fav   = (string) get_post_meta($pid, 'guest_favourite', true); // "1" to show
+
+      echo '<article class="hcn-tile">';
+        echo '<a class="hcn-tile__media" href="' . esc_url(get_permalink($pid)) . '">';
+          if ($featured) {
+            echo '<img src="' . esc_url($featured) . '" alt="' . esc_attr(get_the_title()) . '">';
+          } else {
+            echo '<div class="hcn-tile__ph"></div>';
+          }
+
+          if ($badge) {
+            echo '<div class="hcn-tile__badge">' . esc_html($badge) . '</div>';
+          }
+
+          if ($gallery_count > 1) {
+            echo '<div class="hcn-tile__dots" aria-hidden="true">';
+            $dots = min(5, $gallery_count);
+            for ($d=0; $d<$dots; $d++) {
+              echo '<span class="hcn-tile__dot' . ($d===0 ? ' is-active' : '') . '"></span>';
+            }
+            echo '</div>';
+          }
+        echo '</a>';
+
+        echo '<div class="hcn-tile__body">';
+          echo '<div class="hcn-tile__title-row">';
+            echo '<h3 class="hcn-tile__title"><a href="' . esc_url(get_permalink($pid)) . '">' . esc_html(get_the_title()) . '</a></h3>';
+
+            if ($fav) {
+              echo '<span class="hcn-tile__cta">Guest favourite</span>';
+            }
+          echo '</div>';
+
+          if ($sub) {
+            echo '<div class="hcn-tile__sub">' . esc_html($sub) . '</div>';
+          }
+
+          echo '<div class="hcn-tile__icons">';
+            echo '<span class="hcn-i hcn-i--guests"><span class="hcn-i__ic">👤</span>' . esc_html($sl) . '</span>';
+            echo '<span class="hcn-i hcn-i--beds"><span class="hcn-i__ic">🛏</span>' . esc_html($bd) . '</span>';
+            echo '<span class="hcn-i hcn-i--baths"><span class="hcn-i__ic">🛁</span>' . esc_html($ba) . '</span>';
+          echo '</div>';
+
+          if (!empty($pills)) {
+            echo '<div class="hcn-tile__pills">';
+            foreach ($pills as $pill) {
+              echo '<span class="hcn-tile__pill">' . esc_html($pill) . '</span>';
+            }
+            echo '</div>';
+          }
+
+          // Optional price meta if you have it later:
+          $price_from = (string) get_post_meta($pid, 'price_from', true);
+          if ($price_from) {
+            echo '<div class="hcn-tile__price">From <strong>' . esc_html($price_from) . '</strong> per night</div>';
+          }
+        echo '</div>';
       echo '</article>';
     }
 
@@ -120,6 +195,7 @@ class HavenConnect_Search_Shortcode {
     // ✅ correct script URL (plugin root)
     if (defined('HCN_PLUGIN_URL')) {
         wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.0.2', true);
+        wp_enqueue_style('hcn-tiles', HCN_PLUGIN_URL . 'assets/hcn-tiles.css', [], '1.1.0');
     } else {
         // fallback if constant not defined
         wp_enqueue_script('hcn-search', plugin_dir_url(__DIR__) . 'assets/hcn-search.js', [], '1.0.2', true);

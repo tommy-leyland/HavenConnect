@@ -98,6 +98,16 @@ class HavenConnect_Property_Importer {
       }
     }
 
+    // 0.5) Skip if Hostfully has "Hidden" tag
+    $tags_raw = method_exists($this->api, 'get_property_tags') ? $this->api->get_property_tags($apiKey, $uid) : [];
+    $tags = $this->normalize_tags($tags_raw);
+
+    if ($this->has_hidden_tag($tags)) {
+      $this->logger->log("Hostfully: skipping {$uid} because it has the 'Hidden' tag.");
+      if (method_exists($this->logger, 'save')) $this->logger->save();
+      return 0;
+    }
+
     // 1) Upsert post
     $post_id = $this->upsert_post($uid, $data);
     if (!$post_id) {
@@ -375,6 +385,14 @@ class HavenConnect_Property_Importer {
 
     $flat = array_filter(array_map('trim', $flat));
     return array_values(array_unique($flat));
+  }
+
+  private function has_hidden_tag(array $tags): bool {
+    foreach ($tags as $t) {
+      $t = strtolower(trim((string)$t));
+      if ($t === 'hidden') return true;
+    }
+    return false;
   }
 
   /**

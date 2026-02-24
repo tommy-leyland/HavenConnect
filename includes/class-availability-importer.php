@@ -28,6 +28,121 @@ class HavenConnect_Availability_Importer {
         $this->table  = $wpdb->prefix . 'hcn_availability';
     }
 
+    public function sync_loggia_property_calendar(
+      string $base_url,
+      string $api_key,
+      string $page_id,
+      string $locale,
+      string $loggia_property_id,
+      int $post_id,
+      ?string $from = null,
+      ?string $to = null
+    ): void {
+      // Date range defaults (same style as Hostfully)
+      $nowTs = current_time('timestamp');
+      $from  = $from ?: gmdate('Y-m-d', $nowTs);
+      $to    = $to   ?: gmdate('Y-m-d', strtotime('+365 days', $nowTs));
+
+      // (Optional) keep your 30-day clamp while testing, same as Hostfully method
+      $fromTs  = strtotime($from . ' 00:00:00 UTC');
+      $toTs    = strtotime($to   . ' 00:00:00 UTC');
+      $maxToTs = strtotime('+30 days', $fromTs);
+      if ($toTs === false || $fromTs === false) {
+        $from = gmdate('Y-m-d');
+        $to   = gmdate('Y-m-d', strtotime('+30 days'));
+        $this->logger->log("Loggia Availability: invalid dates provided; defaulted to {$from}→{$to} for test.");
+      } elseif ($toTs > $maxToTs) {
+        $to = gmdate('Y-m-d', $maxToTs);
+        $this->logger->log("Loggia Availability: clamped date range to {$from}→{$to} (max 30 days for test).");
+      }
+
+      $this->logger->log("Loggia Availability: fetching {$loggia_property_id} {$from}→{$to}");
+
+      // Load Loggia client
+      $client_path = defined('HCN_PATH')
+        ? HCN_PATH . 'includes/providers/loggia/class-loggia-client.php'
+        : (plugin_dir_path(__FILE__) . 'providers/loggia/class-loggia-client.php');
+
+      if (file_exists($client_path)) require_once $client_path;
+      if (!class_exists('HavenConnect_Loggia_Client')) {
+        $this->logger->log("Loggia Availability: client class missing.");
+        return;
+      }
+
+      $client = new HavenConnect_Loggia_Client($base_url, $api_key, $this->logger);
+
+      // Call v2 list for range (returns properties[] each with availability map)
+      if (!method_exists($client, 'list_properties_v2')) {
+        $this->logger->log("Loggia Availability: client missing list_properties_v2().");
+        return;
+      }
+
+      $resp = $client->list_properties_v2($page_id, $locale, $from, $to, 0, 200, false);
+      if (!is_array($resp) || empty($resp['properties']) || !is_array($resp['properties'])) {
+        $this->logger->log("Loggia Availability: no properties returned for {$from}→{$to}");
+        return;
+      }
+
+      // Find our property in the list response
+      $prop = null;
+      foreach ($resp['properties'] as $p) {
+        if (!is_array($p)) continue;
+        $pid = (string)($p['property_id'] ?? $p['id'] ?? '');
+        if ($pid === (string)$loggia_property_id) { $prop = $p; break; }
+      }
+
+      if (!$prop || empty($prop['availability']) || !is_array($prop['availability'])) {
+        $this->logger->log("Loggia Availability: property {$loggia_property_id} not found or no availability map.");
+        return;
+      }
+
+      // Transform Loggia map => Hostfully-like $entries structure that write_to_table expects
+      $entries = [];
+      foreach ($prop['availability'] as $day => $info) {
+        if (!is_array($info)) continue;
+        $date = (string)($info['date'] ?? $day);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+
+        $status_desc = strtolower((string)($info['status_desc'] ?? ''));
+        $price = isset($info['price']) && $info['price'] !== '' ? (float)$info['price'] : null;
+
+        // available only if status says available AND we have a price
+        $is_available = ($status_desc === 'available') && ($price !== null);
+
+        $entries[] = [
+          'date' => $date,
+          'pricing' => [
+            'value'    => $price,
+            'currency' => null, // Loggia v2 payload doesn't include currency
+          ],
+          'availability' => [
+            'unavailable'           => $is_available ? false : true,
+            'availableForCheckIn'   => isset($info['checkinAllowed'])  ? (bool)$info['checkinAllowed']  : null,
+            'availableForCheckOut'  => isset($info['checkoutAllowed']) ? (bool)$info['checkoutAllowed'] : null,
+            'minimumStayLength'     => isset($info['min_stay']) && $info['min_stay'] !== null ? (int)$info['min_stay'] : null,
+            'maximumStayLength'     => null,
+          ],
+        ];
+      }
+
+      if (empty($entries)) {
+        $this->logger->log("Loggia Availability: no day entries to write for {$loggia_property_id}.");
+        return;
+      }
+
+      // Write using SAME writer as Hostfully (table if exists, else meta)
+      $use_table = $this->table_exists_and_has_min_columns();
+      if ($use_table) {
+        $this->logger->log("Loggia Availability: writing to table {$this->table}");
+        $this->write_to_table($entries, $post_id, (string)$loggia_property_id, $from, $to);
+      } else {
+        $this->logger->log("Loggia Availability: table missing; writing to post meta instead.");
+        $this->write_to_meta($entries, $post_id, $from, $to);
+      }
+
+      $this->logger->log("Loggia Availability: sync complete for {$loggia_property_id} {$from}→{$to}");
+    }
+
     /**
      * Sync property calendar into DB or post meta.
      *
