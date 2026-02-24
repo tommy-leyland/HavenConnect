@@ -18,7 +18,7 @@ class HavenConnect_Loggia_Client {
     $url = $this->base_url . $path;
 
     $res = wp_remote_post($url, [
-      'timeout' => 8,
+      'timeout' => 20,
       'headers' => [
         'x-api-key'    => $this->api_key,
         'accept'       => 'application/json',

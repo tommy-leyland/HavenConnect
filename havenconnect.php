@@ -13,6 +13,7 @@ define('HCN_FILE', __FILE__);
 define('HCN_DIR',  plugin_dir_path(__FILE__));
 define('HCN_URL',  plugin_dir_url(__FILE__));
 define('HCN_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('HCN_AVAIL_DB_VERSION', 1);
 
 /**
  * Loader helper
@@ -51,14 +52,28 @@ new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
  */
 register_activation_hook(HCN_FILE, ['HavenConnect_Availability_Table', 'install_table']);
 
+register_activation_hook(__FILE__, function () {
+  require_once HCN_PATH . 'includes/class-availability-table.php';
+  HavenConnect_Availability_Table::install_or_upgrade();
+  update_option('hcn_avail_db_version', HCN_AVAIL_DB_VERSION);
+});
+
 /**
- * Safety fallback: create/repair table if missing (admins only)
+ * Safety fallback: create/repair table only when needed (admins only)
+ * - runs in wp-admin only
+ * - runs only when schema version is behind
  */
-add_action('init', function () {
+add_action('admin_init', function () {
+  if (!current_user_can('manage_options')) return;
+
+  $v = (int) get_option('hcn_avail_db_version', 0);
+  if ($v >= HCN_AVAIL_DB_VERSION) return;
+
   if (class_exists('HavenConnect_Availability_Table')) {
     HavenConnect_Availability_Table::install_or_upgrade();
+    update_option('hcn_avail_db_version', HCN_AVAIL_DB_VERSION);
   }
-}, 5);
+});
 
 /**
  * BOOTSTRAP
