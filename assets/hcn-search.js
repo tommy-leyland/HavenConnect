@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       resultsWrap.innerHTML = json.data.html || "<p>No properties found.</p>";
-      window.dispatchEvent(new CustomEvent("hcn:search-updated"));
+      window.dispatchEvent(new CustomEvent("hcn:results-updated"));
       statusEl.textContent = "";
 
     } catch (err) {
@@ -67,6 +67,19 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     runSearch({ pushUrl: true });
+  });
+
+  // External search bars update the URL and dispatch this event.
+  // When received, sync URL -> hidden form and run AJAX search.
+  window.addEventListener("hcn:search-updated", () => {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      el.value = urlParams.has(el.name) ? urlParams.get(el.name) : "";
+    }
+
+    runSearch({ pushUrl: false });
   });
 
   // Back/forward handler

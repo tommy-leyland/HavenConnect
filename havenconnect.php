@@ -23,9 +23,6 @@ function hcn_require($rel) {
     if (file_exists($path)) require_once $path;
 }
 
-hcn_require('class-map-shortcode.php');
-$GLOBALS['havenconnect']['map'] = new HavenConnect_Map_Shortcode();
-
 /**
  * Includes (order matters: core, CPT, utilities, importers, admin)
  */
@@ -44,9 +41,24 @@ hcn_require('admin-save-hooks.php');
 hcn_require('class-availability-cleanup-hooks.php');
 hcn_require('class-search-shortcode.php');
 hcn_require('class-loggia-availability-importer.php');
+hcn_require('class-map-shortcode.php');
+require_once plugin_dir_path(__FILE__) . 'includes/class-search-shortcode.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-map-shortcode.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-search-bar-shortcode.php';
+
 // hcn_require('class-availability-cron.php'); optional later - cron jobs to clear database of old availability data
 new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
 // hcn_require('class-import-cron.php'); // optional later cron
+
+
+/**
+ * Shortcodes
+ */
+
+$GLOBALS['havenconnect']['map'] = new HavenConnect_Map_Shortcode();
+$search_bar = new HavenConnect_Search_Bar_Shortcode();
+$GLOBALS['havenconnect']['search_bar_shortcode'] = $search_bar;
+
 
 /**
  * Create availability table on activation

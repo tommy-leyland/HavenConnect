@@ -253,7 +253,7 @@ class HavenConnect_Search_Shortcode {
           }
 
           echo '<div class="hcn-tile__icons">';
-            echo '<span class="hcn-i hcn-i--guests"><span class="hcn-i__ic">👤</span>' . esc_html($sl) . '</span>';
+            echo '<span class="hcn-i hcn-i--guests"><span class="hcn-i__ic"><img src="/assets/img/"></span>' . esc_html($sl) . '</span>';
             echo '<span class="hcn-i hcn-i--beds"><span class="hcn-i__ic">🛏</span>' . esc_html($bd) . '</span>';
             echo '<span class="hcn-i hcn-i--baths"><span class="hcn-i__ic">🛁</span>' . esc_html($ba) . '</span>';
           echo '</div>';
@@ -294,11 +294,11 @@ class HavenConnect_Search_Shortcode {
 
     // ✅ correct script URL (plugin root)
     if (defined('HCN_PLUGIN_URL')) {
-        wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.0.2', true);
+        wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.0.5', true);
         wp_enqueue_style('hcn-tiles', HCN_PLUGIN_URL . 'assets/hcn-tiles.css', [], '1.1.0');
     } else {
         // fallback if constant not defined
-        wp_enqueue_script('hcn-search', plugin_dir_url(__DIR__) . 'assets/hcn-search.js', [], '1.0.2', true);
+        wp_enqueue_script('hcn-search', plugin_dir_url(__DIR__) . 'assets/hcn-search.js', [], '1.0.5', true);
     }
 
     $nonce = wp_create_nonce('hcn_search_nonce');
@@ -310,7 +310,7 @@ class HavenConnect_Search_Shortcode {
             data-ajax="<?php echo esc_attr($ajax); ?>"
             data-nonce="<?php echo esc_attr($nonce); ?>"
             data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>"
-            style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;">
+            style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;display:none">
 
         <div>
         <label>Check in</label><br>
