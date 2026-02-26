@@ -30,7 +30,7 @@ class HavenConnect_Search_Bar_Shortcode {
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
-    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.1.0');
+    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.1.3');
     wp_enqueue_script('hcn-search-bar', $base . 'assets/hcn-search-bar.js', [], '1.1.0', true);
 
     wp_add_inline_script('hcn-search-bar', 'window.HCN_SEARCH_BAR = ' . wp_json_encode([
@@ -51,7 +51,8 @@ class HavenConnect_Search_Bar_Shortcode {
 
         <!-- Location (free text for now) -->
         <label class="hcn-sf hcn-sf--location">
-          <span class="hcn-sf__icon">📍</span>
+          <span class="hcn-sf__icon"><img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/location.jpg'); ?>" alt="" loading="lazy" decoding="async">
+          </span>
           <input
             class="hcn-sf__input"
             type="text"
@@ -67,7 +68,8 @@ class HavenConnect_Search_Bar_Shortcode {
 
         <!-- Dates field opens modal -->
         <button type="button" class="hcn-sf hcn-sf--dates" data-hcn-open="dates">
-          <span class="hcn-sf__icon">📅</span>
+          <span class="hcn-sf__icon"><img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/dates.jpg'); ?>" alt="" loading="lazy" decoding="async">
+          </span>
           <span class="hcn-sf__text" data-hcn-dates-label>Add dates</span>
         </button>
 
@@ -79,7 +81,7 @@ class HavenConnect_Search_Bar_Shortcode {
 
         <!-- Guests (simple number) -->
         <label class="hcn-sf hcn-sf--guests">
-          <span class="hcn-sf__icon">👤</span>
+          <img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/user.jpg'); ?>" alt="" loading="lazy" decoding="async">
           <input
             class="hcn-sf__input"
             type="number"
@@ -98,13 +100,14 @@ class HavenConnect_Search_Bar_Shortcode {
 
         <!-- Submit -->
         <button type="submit" class="hcn-searchbar__go" aria-label="Search">
-          🔍
+          <img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/Button.jpg'); ?>" alt="" loading="lazy" decoding="async">
         </button>
       </div>
 
       <!-- Filters button -->
       <button type="button" class="hcn-filters" data-hcn-open="filters">
-        <span class="hcn-filters__icon">☰</span>
+        <span class="hcn-filters__icon"><img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/filter.jpg'); ?>" alt="" loading="lazy" decoding="async">
+          </span>
         <span>Filters</span>
         <span class="hcn-filters__dot" data-hcn-filters-dot></span>
       </button>

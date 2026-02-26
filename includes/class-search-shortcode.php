@@ -175,7 +175,7 @@ class HavenConnect_Search_Shortcode {
     }
 
     ob_start();
-    echo '<div class="hcn-results" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px;">';
+    echo '<div class="hcn-results" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">';
 
     while ($q->have_posts()) {
       $q->the_post();
@@ -252,10 +252,14 @@ class HavenConnect_Search_Shortcode {
             echo '<div class="hcn-tile__sub">' . esc_html($sub) . '</div>';
           }
 
+          $icon_user = HCN_PLUGIN_URL . 'assets/img/user2.jpg';
+          $icon_beds = HCN_PLUGIN_URL . 'assets/img/beds.jpg';
+          $icon_baths = HCN_PLUGIN_URL . 'assets/img/baths.jpg';
+
           echo '<div class="hcn-tile__icons">';
-            echo '<span class="hcn-i hcn-i--guests"><span class="hcn-i__ic"><img src="/assets/img/"></span>' . esc_html($sl) . '</span>';
-            echo '<span class="hcn-i hcn-i--beds"><span class="hcn-i__ic">🛏</span>' . esc_html($bd) . '</span>';
-            echo '<span class="hcn-i hcn-i--baths"><span class="hcn-i__ic">🛁</span>' . esc_html($ba) . '</span>';
+            echo '<span class="hcn-i hcn-i--guests"><span class="hcn-i__ic"><img src="' . esc_url($icon_user) . '" alt="" loading="lazy" decoding="async"></span>' . esc_html($sl) . '</span>';
+            echo '<span class="hcn-i hcn-i--beds"><span class="hcn-i__ic"><img src="' . esc_url($icon_beds) . '" alt="" loading="lazy" decoding="async"></span>' . esc_html($bd) . '</span>';
+            echo '<span class="hcn-i hcn-i--baths"><span class="hcn-i__ic"><img src="' . esc_url($icon_baths) . '" alt="" loading="lazy" decoding="async"></span>' . esc_html($ba) . '</span>';
           echo '</div>';
 
           if (!empty($pills)) {
@@ -294,8 +298,8 @@ class HavenConnect_Search_Shortcode {
 
     // ✅ correct script URL (plugin root)
     if (defined('HCN_PLUGIN_URL')) {
-        wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.0.5', true);
-        wp_enqueue_style('hcn-tiles', HCN_PLUGIN_URL . 'assets/hcn-tiles.css', [], '1.1.0');
+        wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.1.2', true);
+        wp_enqueue_style('hcn-tiles', HCN_PLUGIN_URL . 'assets/hcn-tiles.css', [], '1.1.3');
     } else {
         // fallback if constant not defined
         wp_enqueue_script('hcn-search', plugin_dir_url(__DIR__) . 'assets/hcn-search.js', [], '1.0.5', true);
@@ -340,9 +344,9 @@ class HavenConnect_Search_Shortcode {
         <button type="submit">Search</button>
     </form>
 
-    <div class="hcn-search-status" style="margin-top:10px;"></div>
+    <div class="hcn-search-status"></div>
 
-    <div class="hcn-results-wrap" style="margin-top:10px;">
+    <div class="hcn-results-wrap">
         <?php
         // ✅ Option A: ALWAYS show results (latest by default)
         echo $this->build_results_html(

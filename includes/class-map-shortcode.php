@@ -35,8 +35,8 @@ class HavenConnect_Map_Shortcode {
     );
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(__DIR__) . '/';
-    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.0.9', true);
-    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.0.9');
+    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.1.3', true);
+    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.1.3');
 
     $nonce = wp_create_nonce('hcn_map_nonce');
 
@@ -166,6 +166,17 @@ class HavenConnect_Map_Shortcode {
     }
 
     $items = [];
+
+    $asset_base = defined('HCN_PLUGIN_URL')
+      ? HCN_PLUGIN_URL
+      : trailingslashit(plugin_dir_url(dirname(__FILE__))) . '../';
+
+    $icons = [
+      'user' => $asset_base . 'assets/img/user2.jpg',
+      'bed'  => $asset_base . 'assets/img/beds.jpg',
+      'bath' => $asset_base . 'assets/img/baths.jpg',
+    ];
+
     foreach ($post_ids as $pid) {
       $lat = get_post_meta($pid, 'latitude', true);
       $lng = get_post_meta($pid, 'longitude', true);
@@ -201,8 +212,10 @@ class HavenConnect_Map_Shortcode {
         'from' => isset($price_map[$pid]) ? round($price_map[$pid], 0) : '',
         'currency'  => (string)(get_post_meta($pid, 'currency', true) ?: 'GBP'),
         'thumb' => $thumb,
+        'icons'  => $icons,
+        'sub' => (string) get_post_meta($pid, 'city', true),
         'provider' => (string) get_post_meta($pid, 'hcn_source', true) ?: 'hostfully',
-        'uid'      => (string) get_post_meta($pid, 'hostfully_uid', true), // only if you have this meta; otherwise leave as existing
+        'hostfully_uid' => (string) get_post_meta($pid, 'hostfully_uid', true),
       ];
     }
 
