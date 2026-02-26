@@ -17,31 +17,6 @@ add_action('add_meta_boxes', function () {
     );
 });
 
-add_action('save_post_hcn_property', function($post_id){
-
-    if (!isset($_POST['hcn_edit']) || !is_array($_POST['hcn_edit'])) {
-        return;
-    }
-
-    foreach ($_POST['hcn_edit'] as $key => $value) {
-
-        // Handle *locked flag* values
-        if (str_ends_with($key, '_locked')) {
-            update_post_meta($post_id, $key, '1');
-            continue;
-        }
-
-        // For regular fields: save value
-        update_post_meta($post_id, $key, sanitize_text_field($value));
-
-        // If lock checkbox wasn't ticked, remove lock
-        $lock_key = "{$key}_locked";
-        if (!isset($_POST['hcn_edit'][$lock_key])) {
-            delete_post_meta($post_id, $lock_key);
-        }
-    }
-});
-
 /**
  * Render the meta box UI
  */

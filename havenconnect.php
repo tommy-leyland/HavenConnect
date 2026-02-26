@@ -46,10 +46,6 @@ require_once plugin_dir_path(__FILE__) . 'includes/class-search-shortcode.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-map-shortcode.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-search-bar-shortcode.php';
 
-// hcn_require('class-availability-cron.php'); optional later - cron jobs to clear database of old availability data
-new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
-// hcn_require('class-import-cron.php'); // optional later cron
-
 
 /**
  * Shortcodes

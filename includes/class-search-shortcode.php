@@ -170,6 +170,26 @@ class HavenConnect_Search_Shortcode {
 
     $q = new WP_Query($args);
 
+    // Batch-fetch all prices in ONE query instead of one-per-card
+    $price_map = [];
+    if ($q->have_posts()) {
+        $all_ids  = wp_list_pluck($q->posts, 'ID');
+        $id_list  = implode(',', array_map('intval', $all_ids));
+        $table    = $wpdb->prefix . 'hcn_availability';
+        $rows     = $wpdb->get_results(
+            "SELECT post_id, MIN(price) AS min_price
+            FROM {$table}
+            WHERE post_id IN ({$id_list})
+            AND unavailable = 0
+            AND price IS NOT NULL
+            GROUP BY post_id",
+            ARRAY_A
+        );
+        foreach ($rows as $row) {
+            $price_map[(int)$row['post_id']] = (float)$row['min_price'];
+        }
+    }
+
     if (!$q->have_posts()) {
       return '<p>No properties found.</p>';
     }
@@ -271,7 +291,7 @@ class HavenConnect_Search_Shortcode {
           }
 
           // Optional price meta if you have it later:
-          $min_price = $this->get_from_price($pid, $checkin, $checkout);
+          $min_price = $price_map[$pid] ?? null;
           if ($min_price !== null && $min_price > 0) {
             echo '<div class="hcn-tile__price">From <strong>£' . esc_html(number_format($min_price, 0)) . '</strong> per night</div>';
           }

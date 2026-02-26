@@ -202,25 +202,17 @@ class HavenConnect_Availability_Importer {
     /**
      * Check the install table exists & has minimal expected columns.
      */
-    private function table_exists_and_has_min_columns(): bool
-    {
+    private function table_exists_and_has_min_columns(): bool {
+        static $result = null;
+        if ($result !== null) return $result;
         global $wpdb;
-
-        // Fast existence check
-        $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $this->table));
-        if ($exists !== $this->table) return false;
-
-        // Minimal columns we rely on
-        $needed = ['post_id', 'property_uid', 'for_date', 'price', 'currency', 'unavailable'];
-        $cols   = $wpdb->get_results("DESCRIBE {$this->table}", ARRAY_A);
-        if (!is_array($cols)) return false;
-
-        $names = array_map(fn($c) => $c['Field'], $cols);
-        foreach ($needed as $n) {
-            if (!in_array($n, $names, true)) return false;
-        }
-        return true;
+        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $this->table));
+        if ($exists !== $this->table) return ($result = false);
+        $needed = ['post_id','property_uid','for_date','price','currency','unavailable'];
+        $cols = array_column($wpdb->get_results('DESCRIBE '.$this->table, ARRAY_A), 'Field');
+        return ($result = empty(array_diff($needed, $cols)));
     }
+
 
 	/**
 	* Build fallback tags when Hostfully returns none.
