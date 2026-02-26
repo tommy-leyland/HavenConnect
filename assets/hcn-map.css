@@ -1,135 +1,135 @@
-/* Price pill markers */
-.hcn-price-pill{
-  border:0;
-  background:#fff;
-  color:#111;
-  font-weight:700;
-  font-size:13px;
-  padding:8px 10px;
-  border-radius:999px;
-  box-shadow:0 10px 25px rgba(0,0,0,.18);
-  cursor:pointer;
-  user-select:none;
-}
-.hcn-price-pill:hover{ transform:translate(-50%,-50%) scale(1.03); }
-.hcn-price-pill:focus{ outline:2px solid rgba(22,58,99,.35); outline-offset:2px; }
-.hcn-price-pill.is-active{
-  background:#111;
-  color:#fff;
-}
-
-/* Popover container (absolute overlay) */
-.hcn-map-popover{
-  z-index: 9999;
-  transform: translate(-50%, calc(-100% - 14px)); /* above point */
-  font-family: 'Lexend';
-}
-
-/* Card layout (matches your screenshot) */
-.hcn-pop{
-  display:flex;
-  gap:0;
-  width: 360px;
-  max-width: calc(100vw - 28px);
-  background:#fff;
-  border-radius:14px;
-  overflow:hidden;
-  box-shadow:0 18px 45px rgba(0,0,0,.22);
-  position:relative;
-}
-
-.hcn-pop__close{
-  position:absolute;
-  left:10px;
-  top:10px;
-  width:26px;
-  height: 25px;
-  border:0;
-  border-radius:999px;
-  background:rgba(0,0,0,.55);
-  color:#fff;
-  font-size: 16px;
-  cursor:pointer;
-  z-index:2;
-  padding: 9px 9px 11px 9.5px;
-  font-weight: 100;
-  line-height: 0 !important;
-}
-
-.hcn-pop__img{
-  width:120px;
-  min-width:120px;
-  background:#f2f2f2;
-}
-.hcn-pop__img img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
-.hcn-pop__img--ph{ height:120px; }
-
-.hcn-pop__body{
-  padding:14px 14px 14px 14px;
-  flex:1;
-}
-
-.hcn-pop__title{
-  font-weight: 500;
-  letter-spacing:.6px;
-  text-transform:uppercase;
-  font-size:16px;
-  margin:0 0 4px;
-}
-
-.hcn-pop__sub{
-  font-size:13px;
-  color:rgba(0,0,0,.65);
-  margin:0 0 10px;
-}
-
-.hcn-pop__icons{
-  display:flex;
-  gap:12px;
-  font-size:13px;
-  color:rgba(0,0,0,.8);
-  margin:0 0 10px;
-  align-items:center;
-}
-
-.hcn-pop__icons img {
-    display: inline;
-    max-height: 12px;
-    width: auto;
-}
-
-.hcn-pop__price{
-  border-top:1px solid #eee;
-  padding-top:10px;
-  font-size:13px;
-  color: #000;
-  font-weight: 200;
-}
-.hcn-pop__price strong{color:#000;font-weight: 500;}
-
-.hcn-pop__link{
-  display:inline-block;
-  margin-top:10px;
-  color:#163a63;
-  font-weight:700;
-  text-decoration:none;
-}
-
-.elementor-widget-shortcode:has(.hcn-map-wrap) {
-    height: 100%;
-}
-
-.elementor-shortcode:has(.hcn-map-wrap) {
-    height: 100%;
-}
-
-.hcn-map-wrap {
-    height: 100%;
-    border-radius: 10px;
-    overflow: hidden;
+/* Price pill markers */
+.hcn-price-pill{
+  border:0;
+  background:#fff;
+  color:#111;
+  font-weight:700;
+  font-size:13px;
+  padding:8px 10px;
+  border-radius:999px;
+  box-shadow:0 10px 25px rgba(0,0,0,.18);
+  cursor:pointer;
+  user-select:none;
+}
+.hcn-price-pill:hover{ transform:translate(-50%,-50%) scale(1.03); }
+.hcn-price-pill:focus{ outline:2px solid rgba(22,58,99,.35); outline-offset:2px; }
+.hcn-price-pill.is-active{
+  background:#111;
+  color:#fff;
+}
+
+/* Popover container (absolute overlay) */
+.hcn-map-popover{
+  z-index: 9999;
+  transform: translate(-50%, calc(-100% - 14px)); /* above point */
+  font-family: 'Lexend';
+}
+
+/* Card layout (matches your screenshot) */
+.hcn-pop{
+  display:flex;
+  gap:0;
+  width: 360px;
+  max-width: calc(100vw - 28px);
+  background:#fff;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 18px 45px rgba(0,0,0,.22);
+  position:relative;
+}
+
+.hcn-pop__close{
+  position:absolute;
+  left:10px;
+  top:10px;
+  width:26px;
+  height: 25px;
+  border:0;
+  border-radius:999px;
+  background:rgba(0,0,0,.55);
+  color:#fff;
+  font-size: 16px;
+  cursor:pointer;
+  z-index:2;
+  padding: 9px 9px 11px 9.5px;
+  font-weight: 100;
+  line-height: 0 !important;
+}
+
+.hcn-pop__img{
+  width:120px;
+  min-width:120px;
+  background:#f2f2f2;
+}
+.hcn-pop__img img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.hcn-pop__img--ph{ height:120px; }
+
+.hcn-pop__body{
+  padding:14px 14px 14px 14px;
+  flex:1;
+}
+
+.hcn-pop__title{
+  font-weight: 500;
+  letter-spacing:.6px;
+  text-transform:uppercase;
+  font-size:16px;
+  margin:0 0 4px;
+}
+
+.hcn-pop__sub{
+  font-size:13px;
+  color:rgba(0,0,0,.65);
+  margin:0 0 10px;
+}
+
+.hcn-pop__icons{
+  display:flex;
+  gap:12px;
+  font-size:13px;
+  color:rgba(0,0,0,.8);
+  margin:0 0 10px;
+  align-items:center;
+}
+
+.hcn-pop__icons img {
+    display: inline;
+    max-height: 12px;
+    width: auto;
+}
+
+.hcn-pop__price{
+  border-top:1px solid #eee;
+  padding-top:10px;
+  font-size:13px;
+  color: #000;
+  font-weight: 200;
+}
+.hcn-pop__price strong{color:#000;font-weight: 500;}
+
+.hcn-pop__link{
+  display:inline-block;
+  margin-top:10px;
+  color:#163a63;
+  font-weight:700;
+  text-decoration:none;
+}
+
+.elementor-widget-shortcode:has(.hcn-map-wrap) {
+    height: 100%;
+}
+
+.elementor-shortcode:has(.hcn-map-wrap) {
+    height: 100%;
+}
+
+.hcn-map-wrap {
+    height: 100%;
+    border-radius: 10px;
+    overflow: hidden;
 }

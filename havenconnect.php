@@ -46,6 +46,10 @@ require_once plugin_dir_path(__FILE__) . 'includes/class-search-shortcode.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-map-shortcode.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-search-bar-shortcode.php';
 
+// hcn_require('class-availability-cron.php'); optional later - cron jobs to clear database of old availability data
+new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
+// hcn_require('class-import-cron.php'); // optional later cron
+
 
 /**
  * Shortcodes
@@ -56,13 +60,9 @@ $search_bar = new HavenConnect_Search_Bar_Shortcode();
 $GLOBALS['havenconnect']['search_bar_shortcode'] = $search_bar;
 
 
-/**
- * Create availability table on activation
- */
-register_activation_hook(HCN_FILE, ['HavenConnect_Availability_Table', 'install_table']);
-
-register_activation_hook(__FILE__, function () {
-  require_once HCN_PATH . 'includes/class-availability-table.php';
+// Availability table install/upgrade on activation
+register_activation_hook(HCN_FILE, function () {
+  require_once HCN_DIR . 'includes/class-availability-table.php';
   HavenConnect_Availability_Table::install_or_upgrade();
   update_option('hcn_avail_db_version', HCN_AVAIL_DB_VERSION);
 });
