@@ -127,17 +127,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function cardHtml(item) {
+    const userI = item?.icons?.user || "";
+    const bedI  = item?.icons?.bed  || "";
+    const bathI = item?.icons?.bath || "";
+
+    const imgUrl = item.thumb || "";
     return `
       <div class="hcn-pop">
         <button class="hcn-pop__close" type="button" data-hcn-close aria-label="Close">×</button>
-        ${item.thumb ? `<div class="hcn-pop__img"><img src="${item.thumb}" alt=""></div>` : `<div class="hcn-pop__img hcn-pop__img--ph"></div>`}
+        ${imgUrl ? `<div class="hcn-pop__img"><img src="${imgUrl}" alt="" loading="lazy" decoding="async"></div>` : `<div class="hcn-pop__img hcn-pop__img--ph"></div>`}
         <div class="hcn-pop__body">
           <div class="hcn-pop__title">${item.title}</div>
           <div class="hcn-pop__sub">${item.sub || ""}</div>
           <div class="hcn-pop__icons">
-            <span>👤 ${item.sleeps || 0}</span>
-            <span>🛏 ${item.bedrooms || 0}</span>
-            <span>🛁 ${item.bathrooms || 0}</span>
+            <span>${userI ? `<img src="${userI}" alt="" width="16" height="16" loading="lazy" decoding="async">` : "👤"} ${item.sleeps || 0}</span>
+            <span>${bedI  ? `<img src="${bedI}"  alt="" width="16" height="16" loading="lazy" decoding="async">` : "🛏"} ${item.bedrooms || 0}</span>
+            <span>${bathI ? `<img src="${bathI}" alt="" width="16" height="16" loading="lazy" decoding="async">` : "🛁"} ${item.bathrooms || 0}</span>
           </div>
           <div class="hcn-pop__price hcn-price">From <strong>${item.from ? "£" + item.from : "£—"}</strong> per night</div>
           <a class="hcn-pop__link" href="${item.url}">View property</a>
