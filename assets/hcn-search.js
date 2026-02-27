@@ -6,30 +6,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const nonce = form.dataset.nonce;
   const perPage = form.dataset.perPage || "12";
 
-  const statusEl = form.parentElement.querySelector(".hcn-search-status");
-  const resultsWrap = form.parentElement.querySelector(".hcn-results-wrap");
+  const root = form.closest("[data-hcn-results-root]") || form.parentElement;
+  const statusEl = root ? root.querySelector(".hcn-search-status") : null;
+  const resultsWrap = root ? root.querySelector(".hcn-results-wrap") : null;
 
-  if (!resultsWrap) return;
+  function syncFormFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      el.value = urlParams.has(el.name) ? urlParams.get(el.name) : "";
+    }
+  }
 
-  async function runSearch({ pushUrl = true } = {}) {
+  async function runSearch() {
     const fd = new FormData(form);
-
-    // Build querystring for URL
-    const params = new URLSearchParams();
-    for (const [k, v] of fd.entries()) {
-      if (v !== "" && v !== null) params.set(k, v);
-    }
-
-    if (pushUrl) {
-      const newUrl = `${window.location.pathname}?${params.toString()}`;
-      window.history.pushState({ hcn: true }, "", newUrl);
-    }
-
     fd.append("action", "hcn_property_search");
     fd.append("nonce", nonce);
     fd.append("per_page", perPage);
 
-    statusEl.textContent = "Searching…";
+    if (statusEl) statusEl.textContent = "Searching…";
 
     try {
       const res = await fetch(ajaxUrl, {
@@ -39,62 +34,38 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const json = await res.json();
-
       if (!json || !json.success) {
-        statusEl.textContent =
-          (json && json.data && json.data.message) ? json.data.message : "Search failed.";
+        if (statusEl) {
+          statusEl.textContent =
+            (json && json.data && json.data.message) ? json.data.message : "Search failed.";
+        }
         return;
       }
 
-      resultsWrap.innerHTML = json.data.html || "<p>No properties found.</p>";
-      window.dispatchEvent(new CustomEvent("hcn:results-updated"));
-      statusEl.textContent = "";
+      if (resultsWrap) resultsWrap.innerHTML = json.data.html || "";
+      if (statusEl) statusEl.textContent = "";
 
+      // results should ONLY emit this event
+      document.dispatchEvent(new CustomEvent("hcn:results-updated"));
     } catch (err) {
-      statusEl.textContent = "Search error. Check console/logs.";
+      if (statusEl) statusEl.textContent = "Search error. Check console/logs.";
       console.error(err);
     }
   }
 
-  ["change"].forEach((evt) => {
-    form.addEventListener(evt, (e) => {
-        if (!e.target.name) return;
-        runSearch({ pushUrl: true });
-    });
-    });
+  // Initial load
+  syncFormFromUrl();
+  runSearch();
 
-  // Submit handler
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    runSearch({ pushUrl: true });
+  // When search bar updates URL, it should emit this
+  document.addEventListener("hcn:search-updated", () => {
+    syncFormFromUrl();
+    runSearch();
   });
 
-  // External search bars update the URL and dispatch this event.
-  // When received, sync URL -> hidden form and run AJAX search.
-  window.addEventListener("hcn:search-updated", () => {
-    const urlParams = new URLSearchParams(window.location.search);
-
-    for (const el of form.elements) {
-      if (!el.name) continue;
-      el.value = urlParams.has(el.name) ? urlParams.get(el.name) : "";
-    }
-
-    runSearch({ pushUrl: false });
-  });
-
-  // Back/forward handler
+  // Back/forward
   window.addEventListener("popstate", () => {
-    // Put URL params back into the form
-    const urlParams = new URLSearchParams(window.location.search);
-    for (const el of form.elements) {
-      if (!el.name) continue;
-      if (urlParams.has(el.name)) el.value = urlParams.get(el.name);
-      else el.value = ""; // reset if param missing
-    }
-    runSearch({ pushUrl: false });
+    syncFormFromUrl();
+    runSearch();
   });
-
-    // Load results on first page load (no params needed)
-    runSearch({ pushUrl: false });
-
 });
