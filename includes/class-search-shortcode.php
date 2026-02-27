@@ -26,8 +26,21 @@ class HavenConnect_Search_Shortcode {
     $bedrooms  = max(0, (int)   ($_POST['bedrooms']  ?? 0));
     $bathrooms = max(0, (float) ($_POST['bathrooms'] ?? 0));
     $per_page  = max(1, (int)   ($_POST['per_page']  ?? 100));
-
-    $html = $this->build_results_html($checkin, $checkout, $guests, $bedrooms, $bathrooms, $per_page);
+	$min_price = isset($_POST['min_price']) ? (int)$_POST['min_price'] : (isset($_GET['min_price']) ? (int)$_GET['min_price'] : 0);
+	$max_price = isset($_POST['max_price']) ? (int)$_POST['max_price'] : (isset($_GET['max_price']) ? (int)$_GET['max_price'] : 0);
+	$features_csv = sanitize_text_field($_POST['features'] ?? ($_GET['features'] ?? ''));
+	$feature_slugs = array_values(array_filter(array_map('sanitize_title', array_map('trim', explode(',', $features_csv)))));
+	$html = $this->build_results_html(
+	  $checkin,
+	  $checkout,
+	  $guests,
+	  $bedrooms,
+	  $bathrooms,
+	  $per_page,
+	  (int)$min_price,
+	  (int)$max_price,
+	  $feature_slugs
+	);
 
     wp_send_json_success([
       'html' => $html,
@@ -74,6 +87,9 @@ class HavenConnect_Search_Shortcode {
         <input type="hidden" name="guests"    value="<?php echo esc_attr($guests); ?>">
         <input type="hidden" name="bedrooms"  value="<?php echo esc_attr($bedrooms); ?>">
         <input type="hidden" name="bathrooms" value="<?php echo esc_attr($bathrooms); ?>">
+		<input type="hidden" name="min_price" value="<?php echo esc_attr($_GET['min_price'] ?? ''); ?>">
+		<input type="hidden" name="max_price" value="<?php echo esc_attr($_GET['max_price'] ?? ''); ?>">
+		<input type="hidden" name="features"  value="<?php echo esc_attr($_GET['features'] ?? ''); ?>">
       </form>
 
       <div class="hcn-search-status" aria-live="polite"></div>
@@ -81,7 +97,22 @@ class HavenConnect_Search_Shortcode {
       <div class="hcn-results-wrap">
         <?php
           // SSR initial render
-          echo $this->build_results_html($checkin, $checkout, $guests, $bedrooms, $bathrooms, (int)$atts['per_page']);
+		$min_price = isset($_GET['min_price']) ? (int)$_GET['min_price'] : 0;
+		$max_price = isset($_GET['max_price']) ? (int)$_GET['max_price'] : 0;
+		$features_csv = sanitize_text_field($_GET['features'] ?? '');
+		$feature_slugs = array_values(array_filter(array_map('sanitize_title', array_map('trim', explode(',', $features_csv)))));
+
+		echo $this->build_results_html(
+			$checkin,
+			$checkout,
+			$guests,
+			$bedrooms,
+			$bathrooms,
+			(int)$atts['per_page'],
+			$min_price,
+			$max_price,
+			$feature_slugs
+		);
         ?>
       </div>
     </div>
@@ -89,7 +120,17 @@ class HavenConnect_Search_Shortcode {
     return ob_get_clean();
   }
 
-  private function build_results_html(string $checkin, string $checkout, int $guests, int $bedrooms, float $bathrooms, int $per_page): string {
+  private function build_results_html(
+	  string $checkin,
+	  string $checkout,
+	  int $guests,
+	  int $bedrooms,
+	  float $bathrooms,
+	  int $per_page,
+	  int $min_price = 0,
+	  int $max_price = 0,
+	  array $feature_slugs = []
+	): string {
     $args = [
       'post_type'      => 'hcn_property',
       'post_status'    => 'publish',
@@ -105,6 +146,19 @@ class HavenConnect_Search_Shortcode {
       $args['post__in'] = $ids;
       $args['orderby'] = 'post__in';
     }
+	
+	if ($min_price > 0 || $max_price > 0) {
+		$price_ids = $this->get_price_filtered_ids($min_price, $max_price, $checkin, $checkout);	  if (empty($price_ids)) {
+		return '<div class="hcn-empty">No properties match that price range.</div>';
+	  }
+	  // intersect with existing post__in if set
+	  if (!empty($args['post__in'])) {
+		$args['post__in'] = array_values(array_intersect($args['post__in'], $price_ids));
+	  } else {
+		$args['post__in'] = $price_ids;
+	  }
+	  $args['orderby'] = 'post__in';
+	}
 
     // Meta filters
     $meta_query = [];
@@ -120,6 +174,17 @@ class HavenConnect_Search_Shortcode {
     if (!empty($meta_query)) {
       $args['meta_query'] = $meta_query;
     }
+	
+	if (!empty($feature_slugs)) {
+	  $args['tax_query'] = [
+		[
+		  'taxonomy' => 'hcn_feature',
+		  'field'    => 'slug',
+		  'terms'    => $feature_slugs,
+		  'operator' => 'AND',
+		]
+	  ];
+	}
 
     $q = new WP_Query($args);
     if (!$q->have_posts()) {
@@ -327,4 +392,43 @@ class HavenConnect_Search_Shortcode {
     $ids = $this->db->get_col($sql);
     return array_map('intval', $ids ?: []);
   }
+  
+  private function get_price_filtered_ids(int $min, int $max, string $checkin = '', string $checkout = ''): array {
+	  if ($min <= 0 && $max <= 0) return [];
+
+	  $table  = $this->db->prefix . 'hcn_availability';
+	  $exists = $this->db->get_var($this->db->prepare("SHOW TABLES LIKE %s", $table));
+	  if ($exists !== $table) return [];
+
+	  $where = "unavailable = 0 AND price IS NOT NULL";
+	  $params = [];
+
+	  if ($checkin && $checkout) {
+		$in  = strtotime($checkin);
+		$out = strtotime($checkout);
+		if ($in && $out && $out > $in) {
+		  $where .= " AND for_date >= %s AND for_date < %s";
+		  $params[] = gmdate('Y-m-d', $in);
+		  $params[] = gmdate('Y-m-d', $out);
+		}
+	  }
+
+	  $havingParts = [];
+	  if ($min > 0) { $havingParts[] = "MIN(price) >= %d"; $params[] = $min; }
+	  if ($max > 0) { $havingParts[] = "MIN(price) <= %d"; $params[] = $max; }
+	  $having = $havingParts ? ("HAVING " . implode(" AND ", $havingParts)) : "";
+
+	  $sql = "SELECT post_id
+			  FROM {$table}
+			  WHERE {$where}
+			  GROUP BY post_id
+			  {$having}
+			  LIMIT 5000";
+
+	  $prepared = $this->db->prepare($sql, $params);
+	  $ids = $this->db->get_col($prepared);
+
+	  return array_map('intval', $ids ?: []);
+	}
+  
 }  

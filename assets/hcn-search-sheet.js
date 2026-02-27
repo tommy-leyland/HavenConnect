@@ -31,14 +31,13 @@
     const accLoc = form.querySelector('[data-hcn-acc="location"]');
     const accDates = form.querySelector('[data-hcn-acc="dates"]');
     const accGuests = form.querySelector('[data-hcn-acc="guests"]');
-
     const allAcc = [accLoc, accDates, accGuests].filter(Boolean);
 
     // Location panel
     const locSearch = form.querySelector("[data-hcn-loc-search]");
-    const locItems = form.querySelectorAll("[data-hcn-loc-pick]");
+    const locListWrap = form.querySelector("[data-hcn-popular-wrap]"); // Step 4 hook
 
-    // Guests panel
+    // Guests panel (rows)
     const gAdults = form.querySelector('[data-hcn-guest="adults"]');
     const gChildren = form.querySelector('[data-hcn-guest="children"]');
     const gInfants = form.querySelector('[data-hcn-guest="infants"]');
@@ -73,7 +72,7 @@
       emitSearchUpdated();
     };
 
-    // ---------- helpers ----------
+    // ---------- sheet open/close ----------
     const openSheet = (section) => {
       if (!overlay) return;
       overlay.classList.add("is-open");
@@ -96,6 +95,7 @@
       if (target) target.classList.add("is-open");
     };
 
+    // ---------- bar labels ----------
     const setBarLabels = () => {
       // Location
       if (locLabel) {
@@ -140,6 +140,7 @@
     trigGuests?.addEventListener("click", (e) => { e.preventDefault(); openSheet("guests"); });
 
     closeBtn?.addEventListener("click", (e) => { e.preventDefault(); closeSheet(); });
+
     overlay?.addEventListener("click", (e) => {
       if (e.target === overlay) closeSheet();
     });
@@ -148,29 +149,99 @@
       if (e.key === "Escape") closeSheet();
     });
 
-    // ---------- Location ----------
-    locItems.forEach((item) => {
-      item.addEventListener("click", () => {
-        const val = item.getAttribute("data-hcn-loc-pick") || "";
-        if (locationInput) locationInput.value = val;
-        if (locSearch) locSearch.value = val;
-        setBarLabels();
+    // =========================================================
+    // LOCATION: popular + autocomplete from taxonomy
+    // =========================================================
+
+    const renderListItems = (items) => {
+      if (!locListWrap) return;
+
+      if (!items || !items.length) {
+        locListWrap.innerHTML = `<div class="hcn-muted" style="font-size:12px; opacity:.7;">No matches found.</div>`;
+        return;
+      }
+
+      locListWrap.innerHTML = items.map(it => `
+        <div class="hcn-loc-item" data-hcn-loc-pick="${String(it.name)}" data-hcn-loc-slug="${String(it.slug || "")}">
+          📍 ${String(it.name)}
+        </div>
+      `).join("");
+
+      locListWrap.querySelectorAll("[data-hcn-loc-pick]").forEach(el => {
+        el.addEventListener("click", () => {
+          const name = el.getAttribute("data-hcn-loc-pick") || "";
+          if (locationInput) locationInput.value = name;
+          if (locSearch) locSearch.value = name;
+          setBarLabels();
+        });
       });
-    });
+    };
+
+    const renderPopular = () => {
+      const items = Array.isArray(cfg.popularLocations) ? cfg.popularLocations : [];
+      if (!locListWrap) return;
+
+      if (!items.length) {
+        locListWrap.innerHTML = `<div class="hcn-muted" style="font-size:12px; opacity:.7;">No popular locations set in Settings yet.</div>`;
+        return;
+      }
+
+      // Show as list items
+      renderListItems(items);
+    };
+
+    const fetchLocSuggestions = async (q) => {
+      const ajaxUrl = cfg.ajaxUrl;
+      if (!ajaxUrl) return [];
+
+      const url = new URL(ajaxUrl);
+      url.searchParams.set("action", "hcn_location_suggest");
+      url.searchParams.set("tax", cfg.locTax || "property_loc");
+      url.searchParams.set("q", q);
+
+      const res = await fetch(url.toString(), { credentials: "same-origin" });
+      const json = await res.json();
+      return (json && json.success && json.data && Array.isArray(json.data.items)) ? json.data.items : [];
+    };
+
+    // initial popular render
+    renderPopular();
+
+    let locTimer = null;
 
     locSearch?.addEventListener("input", () => {
-      // For now, just write through. (We can wire real suggestions later.)
-      if (locationInput) locationInput.value = locSearch.value;
+      const q = (locSearch.value || "").trim();
+
+      // write-through to hidden input
+      if (locationInput) locationInput.value = q;
       setBarLabels();
+
+      if (locTimer) clearTimeout(locTimer);
+      locTimer = setTimeout(async () => {
+        if (!q) {
+          renderPopular();
+          return;
+        }
+
+        try {
+          const items = await fetchLocSuggestions(q);
+          renderListItems(items);
+        } catch (e) {
+          // fallback to popular on any fetch error
+          renderPopular();
+        }
+      }, 180);
     });
 
-    // ---------- Guests ----------
+    // =========================================================
+    // GUESTS: steppers -> total guests = adults + children
+    // =========================================================
+
     const stepper = (wrap) => {
       if (!wrap) return;
       const minus = wrap.querySelector('[data-hcn-step="-"]');
       const plus = wrap.querySelector('[data-hcn-step="+"]');
       const out = wrap.querySelector("[data-hcn-step-out]");
-      const key = wrap.getAttribute("data-hcn-guest");
 
       const get = () => parseInt(out?.textContent || "0", 10) || 0;
       const set = (n) => { if (out) out.textContent = String(Math.max(0, n)); };
@@ -186,35 +257,24 @@
         set(get() + 1);
         updateGuestsTotal();
       });
-
-      // init from hidden?
-      if (key === "adults") {
-        // if guests already set and breakdown empty, leave as-is
-      }
     };
 
     const updateGuestsTotal = () => {
       const a = parseInt(gAdults?.querySelector("[data-hcn-step-out]")?.textContent || "0", 10) || 0;
       const c = parseInt(gChildren?.querySelector("[data-hcn-step-out]")?.textContent || "0", 10) || 0;
-      const i = parseInt(gInfants?.querySelector("[data-hcn-step-out]")?.textContent || "0", 10) || 0;
-      const p = parseInt(gPets?.querySelector("[data-hcn-step-out]")?.textContent || "0", 10) || 0;
 
-      // What counts as "guests" in the main search? Usually adults + children only.
-      const total = a + c; 
+      const total = a + c; // capacity guest count
       if (guestsHidden) guestsHidden.value = total ? String(total) : "";
-
-      // Optional: store breakdown (handy later)
-      form.querySelector('[name="adults"]')?.setAttribute("value", String(a));
-      form.querySelector('[name="children"]')?.setAttribute("value", String(c));
-      form.querySelector('[name="infants"]')?.setAttribute("value", String(i));
-      form.querySelector('[name="pets"]')?.setAttribute("value", String(p));
 
       setBarLabels();
     };
 
     [gAdults, gChildren, gInfants, gPets].forEach(stepper);
 
-    // ---------- Dates (range calendar) ----------
+    // =========================================================
+    // DATES: simple range calendar
+    // =========================================================
+
     let view = new Date();
     view.setDate(1);
 
@@ -289,7 +349,9 @@
     btnPrev?.addEventListener("click", (e) => { e.preventDefault(); view.setMonth(view.getMonth() - 1); renderCal(); });
     btnNext?.addEventListener("click", (e) => { e.preventDefault(); view.setMonth(view.getMonth() + 1); renderCal(); });
 
-    // ---------- Footer buttons ----------
+    // =========================================================
+    // Footer buttons
+    // =========================================================
     clearBtn?.addEventListener("click", (e) => {
       e.preventDefault();
       if (locationInput) locationInput.value = "";
@@ -305,6 +367,8 @@
       selOut = "";
       if (hint) hint.textContent = "Select check-in, then check-out";
       renderCal();
+
+      renderPopular();
       setBarLabels();
       syncUrlFromForm();
     });
@@ -324,6 +388,9 @@
     renderCal();
   };
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();

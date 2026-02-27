@@ -32,8 +32,10 @@ class HavenConnect_Search_Bar_Shortcode {
     wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.2.0');
 
     // New sheet assets
-    wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '1.0.0');
-    wp_enqueue_script('hcn-search-sheet', $base . 'assets/hcn-search-sheet.js', [], '1.0.0', true);
+    wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '1.0.1');
+    wp_enqueue_script('hcn-search-sheet', $base . 'assets/hcn-search-sheet.js', [], '1.0.1', true);
+	wp_enqueue_style('hcn-filters', $base . 'assets/hcn-filters.css', [], '1.0.1');
+	wp_enqueue_script('hcn-filters', $base . 'assets/hcn-filters.js', [], '1.0.1', true);
 	
 	$settings = get_option('hcn_settings', []);
 	$popular_ids = isset($settings['popular_locations']) && is_array($settings['popular_locations'])
@@ -62,6 +64,29 @@ class HavenConnect_Search_Bar_Shortcode {
 		}
 	  }
 	}
+	
+	$settings = get_option('hcn_settings', []);
+	$featured_ids = isset($settings['featured_features']) && is_array($settings['featured_features'])
+	  ? array_map('intval', $settings['featured_features'])
+	  : [];
+
+	$featured_terms = [];
+	if ($featured_ids) {
+	  $terms = get_terms([
+		'taxonomy' => 'hcn_feature',
+		'include' => $featured_ids,
+		'hide_empty' => false,
+	  ]);
+	  if (!is_wp_error($terms)) {
+		$by_id = [];
+		foreach ($terms as $t) $by_id[(int)$t->term_id] = $t;
+		foreach ($featured_ids as $id) {
+		  if (isset($by_id[$id])) {
+			$featured_terms[] = ['id'=>$id, 'name'=>$by_id[$id]->name, 'slug'=>$by_id[$id]->slug];
+		  }
+		}
+	  }
+	}
 
     // Keep config object name the same
     wp_add_inline_script('hcn-search-sheet', 'window.HCN_SEARCH_BAR = ' . wp_json_encode([
@@ -76,17 +101,25 @@ class HavenConnect_Search_Bar_Shortcode {
 		'ajaxUrl' => admin_url('admin-ajax.php'),
 		'locTax'  => 'property_loc',
 		'popularLocations' => $popular_terms,
+		'featuredFeatures' => $featured_terms,
+		'ajaxUrl' => admin_url('admin-ajax.php'),
+		'locTax'  => 'property_loc',
+		'priceMin' => 0,
+		'priceMax' => 1000,
     ]) . ';', 'before');
 
     ob_start();
     ?>
     <form class="hcn-searchbar" data-hcn-searchbar method="get" action="<?php echo esc_url($action); ?>">
-      <!-- Hidden fields that drive URL + results -->
-      <input type="hidden" name="checkin"   value="<?php echo esc_attr($checkin); ?>"  data-hcn-checkin>
-      <input type="hidden" name="checkout"  value="<?php echo esc_attr($checkout); ?>" data-hcn-checkout>
-      <input type="hidden" name="guests"    value="<?php echo esc_attr($guests); ?>"   data-hcn-guests>
-      <input type="hidden" name="bedrooms"  value="<?php echo esc_attr($bedrooms); ?>" data-hcn-bedrooms>
-      <input type="hidden" name="bathrooms" value="<?php echo esc_attr($bathrooms); ?>" data-hcn-bathrooms>
+		<!-- Hidden fields that drive URL + results -->
+		<input type="hidden" name="checkin"   value="<?php echo esc_attr($checkin); ?>"  data-hcn-checkin>
+		<input type="hidden" name="checkout"  value="<?php echo esc_attr($checkout); ?>" data-hcn-checkout>
+		<input type="hidden" name="guests"    value="<?php echo esc_attr($guests); ?>"   data-hcn-guests>
+		<input type="hidden" name="bedrooms"  value="<?php echo esc_attr($bedrooms); ?>" data-hcn-bedrooms>
+		<input type="hidden" name="bathrooms" value="<?php echo esc_attr($bathrooms); ?>" data-hcn-bathrooms>
+		<input type="hidden" name="min_price" value="<?php echo esc_attr($_GET['min_price'] ?? ''); ?>">
+		<input type="hidden" name="max_price" value="<?php echo esc_attr($_GET['max_price'] ?? ''); ?>">
+		<input type="hidden" name="features"  value="<?php echo esc_attr($_GET['features'] ?? ''); ?>">
 
       <!-- Visible "location" value is stored in this input so it goes into querystring -->
       <input type="hidden" name="location" value="<?php echo esc_attr($location); ?>" data-hcn-location>
@@ -146,12 +179,7 @@ class HavenConnect_Search_Bar_Shortcode {
             </button>
             <div class="hcn-acc__panel">
               <input class="hcn-loc-input" type="text" placeholder="Type a destination or property" data-hcn-loc-search>
-              <div class="hcn-loc-list">
-                <div class="hcn-muted" style="font-size:11px; opacity:.6; margin:8px 0 6px;">POPULAR DESTINATIONS</div>
-                <div class="hcn-loc-item" data-hcn-loc-pick="Anglesey">📍 Anglesey, North Wales</div>
-                <div class="hcn-loc-item" data-hcn-loc-pick="Cotswolds">📍 Cotswolds, England</div>
-                <div class="hcn-loc-item" data-hcn-loc-pick="Lake District">📍 Lake District, England</div>
-              </div>
+              <div class="hcn-loc-list" data-hcn-popular-wrap></div>
             </div>
           </div>
 
@@ -218,7 +246,86 @@ class HavenConnect_Search_Bar_Shortcode {
         </div>
       </div>
 
-      <!-- KEEP your existing Filters modal markup here if you already had it (unchanged) -->
+      <div class="hcn-filters-overlay" data-hcn-filters-overlay aria-hidden="true">
+		  <div class="hcn-filters" role="dialog" aria-modal="true" aria-label="Filters">
+			<button type="button" class="hcn-filters__close" data-hcn-filters-close aria-label="Close">×</button>
+			<div class="hcn-filters__title">Filters</div>
+
+			<div class="hcn-facc" data-hcn-facc="price">
+			  <button type="button" class="hcn-facc__head" data-hcn-facc-head>
+				<div>
+				  <div class="hcn-facc__title">Price per night</div>
+				  <div class="hcn-facc__value" data-hcn-facc-value>Any</div>
+				</div>
+				<div>▾</div>
+			  </button>
+			  <div class="hcn-facc__panel">
+				<div class="hcn-range">
+				  <div class="hcn-range__row">
+					<label>From</label>
+					<input type="number" min="0" step="1" data-hcn-price-min placeholder="0">
+				  </div>
+				  <div class="hcn-range__row">
+					<label>To</label>
+					<input type="number" min="0" step="1" data-hcn-price-max placeholder="1000">
+				  </div>
+				  <div class="hcn-range__sliders">
+					<input type="range" min="0" max="1000" step="1" data-hcn-price-min-range>
+					<input type="range" min="0" max="1000" step="1" data-hcn-price-max-range>
+				  </div>
+				</div>
+			  </div>
+			</div>
+
+			<div class="hcn-facc" data-hcn-facc="rooms">
+			  <button type="button" class="hcn-facc__head" data-hcn-facc-head>
+				<div>
+				  <div class="hcn-facc__title">Bedrooms & bathrooms</div>
+				  <div class="hcn-facc__value" data-hcn-facc-value>Any</div>
+				</div>
+				<div>▾</div>
+			  </button>
+			  <div class="hcn-facc__panel" data-hcn-rooms-wrap>
+				<div class="hcn-step" data-hcn-room="bedrooms">
+				  <div class="hcn-step__label">Bedrooms</div>
+				  <div class="hcn-stepper">
+					<button type="button" data-hcn-step="-">–</button>
+					<span class="hcn-stepper__n" data-hcn-bed-out>0</span>
+					<button type="button" data-hcn-step="+">+</button>
+				  </div>
+				</div>
+				<div class="hcn-step" data-hcn-room="bathrooms">
+				  <div class="hcn-step__label">Bathrooms</div>
+				  <div class="hcn-stepper">
+					<button type="button" data-hcn-step="-">–</button>
+					<span class="hcn-stepper__n" data-hcn-bath-out>0</span>
+					<button type="button" data-hcn-step="+">+</button>
+				  </div>
+				</div>
+			  </div>
+			</div>
+
+			<div class="hcn-facc" data-hcn-facc="features">
+			  <button type="button" class="hcn-facc__head" data-hcn-facc-head>
+				<div>
+				  <div class="hcn-facc__title">Features</div>
+				  <div class="hcn-facc__value" data-hcn-facc-value>Any</div>
+				</div>
+				<div>▾</div>
+			  </button>
+			  <div class="hcn-facc__panel">
+				<div class="hcn-chips" data-hcn-feature-chips></div>
+			  </div>
+			</div>
+
+			<div class="hcn-filters__actions">
+			  <button type="button" class="hcn-filters__clear" data-hcn-filters-clear>Clear all</button>
+			  <button type="button" class="hcn-filters__apply" data-hcn-filters-apply>View homes</button>
+			</div>
+		  </div>
+		</div>
+	  
+	  <!-- KEEP your existing Filters modal markup here if you already had it (unchanged) -->
       <?php /* If your current version includes filters modal HTML, keep it below */ ?>
     </form>
     <?php
