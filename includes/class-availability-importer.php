@@ -222,35 +222,6 @@ class HavenConnect_Availability_Importer {
         return true;
     }
 
-	/**
-	* Build fallback tags when Hostfully returns none.
-	* Uses address + property types so Location/Group taxonomies still populate.
-	*
-	* Our taxonomy handler maps "LOC:*" to 'property_loc' and "GROUP:*" to 'property_group'.
-	*/
-	private function build_fallback_tags_from_property(array $p): array
-	{
-		$tags = [];
-
-		// Address-based locations
-		$addr    = (array)($p['address'] ?? []);
-		$city    = trim((string)($addr['city'] ?? ''));
-		$state   = trim((string)($addr['state'] ?? ''));
-		$country = trim((string)($addr['countryCode'] ?? ''));
-
-		if ($city !== '')    $tags[] = 'LOC:' . $city;
-		if ($state !== '')   $tags[] = 'LOC:' . $state;
-		if ($country !== '') $tags[] = 'LOC:' . $country;
-
-		// Group from types
-		$listingType  = trim((string)($p['listingType']  ?? ''));
-		$propertyType = trim((string)($p['propertyType'] ?? ''));
-
-		if ($listingType !== '')  $tags[] = 'GROUP:' . $listingType;
-		if ($propertyType !== '') $tags[] = 'GROUP:' . $propertyType;
-
-		return array_values(array_unique($tags));
-	}
 
     /**
      * Delete existing rows in the given range, then insert fresh.
@@ -302,7 +273,7 @@ class HavenConnect_Availability_Importer {
                     'updated_at'     => gmdate('Y-m-d H:i:s'),
                 ],
                 [
-                    '%d','%s','%s','%f','%s','%d','%s','%d','%d','%d','%d','%s','%s'
+                    '%d','%s','%s','%f','%s','%d','%d','%d','%d','%d','%s'
                 ]
             );
             if (!$wpdb->last_error) $inserted++;

@@ -23,7 +23,11 @@ add_action('untrash_post', function ($post_id) {
   // Only admins restoring posts
   if (!current_user_can('manage_options')) return;
 
-  $apiKey = trim((get_option('havenconnect_settings', [])['api_key'] ?? ''));
+  $hf_opts = get_option('hcn_hostfully', []);
+  if (!is_array($hf_opts) || empty($hf_opts['api_key'])) {
+    $hf_opts = get_option('havenconnect_options', []); // legacy fallback
+  }
+  $apiKey = trim((is_array($hf_opts) ? ($hf_opts['api_key'] ?? '') : ''));
   if (!$apiKey) return;
 
   $uid = get_post_meta($post_id, '_havenconnect_uid', true);

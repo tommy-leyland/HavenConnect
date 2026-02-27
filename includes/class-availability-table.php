@@ -72,7 +72,6 @@ class HavenConnect_Availability_Table {
       }
     }
 
-    error_log('HCN AVAIL drop fragments: ' . wp_json_encode($drop));
 
     if (!empty($drop)) {
 

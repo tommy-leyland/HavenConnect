@@ -39,8 +39,8 @@ class HavenConnect_Map_Shortcode {
     );
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(__DIR__) . '/';
-    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.1.3', true);
-    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.1.3');
+    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.1.4', true);
+    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.1.4'); 
 
     $nonce = wp_create_nonce('hcn_map_nonce');
 

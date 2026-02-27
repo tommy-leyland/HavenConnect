@@ -41,8 +41,8 @@ class HavenConnect_Search_Shortcode {
 
     // Enqueue assets
     if (defined('HCN_PLUGIN_URL')) {
-      wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.2.0', true);
-      wp_enqueue_style('hcn-tiles',   HCN_PLUGIN_URL . 'assets/hcn-tiles.css', [], '1.2.0');
+      wp_enqueue_script('hcn-search', HCN_PLUGIN_URL . 'assets/hcn-search.js', [], '1.2.1', true);
+      wp_enqueue_style('hcn-tiles',   HCN_PLUGIN_URL . 'assets/hcn-tiles.css', [], '1.2.1');
     } else {
       // Fallback if constant not defined
       $base = plugin_dir_url(__DIR__);

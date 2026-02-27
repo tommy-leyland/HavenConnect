@@ -30,8 +30,8 @@ class HavenConnect_Search_Bar_Shortcode {
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
-    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.1.3');
-    wp_enqueue_script('hcn-search-bar', $base . 'assets/hcn-search-bar.js', [], '1.1.0', true);
+    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.1.4');
+    wp_enqueue_script('hcn-search-bar', $base . 'assets/hcn-search-bar.js', [], '1.1.4', true);
 
     wp_add_inline_script('hcn-search-bar', 'window.HCN_SEARCH_BAR = ' . wp_json_encode([
       'ajax'      => ($atts['ajax'] === '1'),

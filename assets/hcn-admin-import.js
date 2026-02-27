@@ -191,7 +191,7 @@ async function post(data) {
   }
 
   async function runBox(box, action) {
-    const provider = box.dataset.provider || "hostfully";
+    const provider = (box.dataset.provider === "all" ? "both" : box.dataset.provider) || "hostfully";
     const modeEl = box.querySelector('[data-role="mode"]');
     const mode = modeEl ? modeEl.value : (box.dataset.mode || "all");
 
