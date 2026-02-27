@@ -112,6 +112,16 @@ add_action('init', function () {
 
     // Property importer & Admin
     $importer = new HavenConnect_Property_Importer($api, $tax, $photos, $logger);
+	
+	// --- Providers (Option B architecture)
+	hcn_require('providers/hostfully/class-hostfully-mapper.php');
+	hcn_require('providers/hostfully/class-hostfully-provider.php');
+
+	hcn_require('providers/loggia/class-loggia-mapper.php');
+	hcn_require('providers/loggia/class-loggia-provider.php');
+
+	$hostfully_provider = new HavenConnect_Hostfully_Provider($api, $importer, $logger);
+	$loggia_provider    = new HavenConnect_Loggia_Provider($logger, $photos, $loggia_importer);
     $admin    = new HavenConnect_Admin($importer, $logger);
 
     $GLOBALS['havenconnect'] = [
@@ -123,6 +133,10 @@ add_action('init', function () {
       'importer'     => $importer,
       'admin'        => $admin,
       'loggia_importer' => $loggia_importer,
+	  'providers' => [
+		  'hostfully' => $hostfully_provider,
+		  'loggia'    => $loggia_provider,
+		],
     ];
 
     // Ensure the CPT supports classic custom fields

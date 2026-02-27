@@ -25,7 +25,7 @@ class HavenConnect_Search_Shortcode {
     $guests    = max(0, (int)   ($_POST['guests']    ?? 0));
     $bedrooms  = max(0, (int)   ($_POST['bedrooms']  ?? 0));
     $bathrooms = max(0, (float) ($_POST['bathrooms'] ?? 0));
-    $per_page  = max(1, (int)   ($_POST['per_page']  ?? 12));
+    $per_page  = max(1, (int)   ($_POST['per_page']  ?? 100));
 
     $html = $this->build_results_html($checkin, $checkout, $guests, $bedrooms, $bathrooms, $per_page);
 
@@ -36,7 +36,7 @@ class HavenConnect_Search_Shortcode {
 
   public function render($atts = []) {
     $atts = shortcode_atts([
-      'per_page' => 12,
+      'per_page' => 100,
     ], $atts);
 
     // Enqueue assets
