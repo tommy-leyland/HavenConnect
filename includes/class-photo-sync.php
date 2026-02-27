@@ -21,10 +21,11 @@ class HavenConnect_Photo_Sync {
 
     private $logger;
 
-    const META_FEATURED_URL = '_hcn_featured_image_url';
-    const META_GALLERY_URLS = '_hcn_gallery_urls';
-    const DISCRETE_PREFIX   = 'hcn_gallery_url_';
-    const MAX_URLS          = 150;
+	const META_FEATURED_URL = '_hcn_featured_image_url';
+	const META_FEATURED_THUMB = '_hcn_featured_thumb_url';
+	const META_GALLERY_URLS = '_hcn_gallery_urls';
+	const DISCRETE_PREFIX   = 'hcn_gallery_url_';
+	const MAX_URLS          = 150;
 
     public function __construct($logger) {
         $this->logger = $logger;
@@ -33,45 +34,84 @@ class HavenConnect_Photo_Sync {
     /**
      * Entrypoint: receives Hostfully API photo payload and writes ALL URL metadata.
      */
-    public function sync_from_payload(int $post_id, array $photos_payload): void {
+	public function sync_from_payload(int $post_id, array $photos_payload): void {
 
-        $this->logger->log("Photos: processing payload for post {$post_id}…");
+		$this->logger->log("Photos: processing payload for post {$post_id}…");
 
-        $urls = $this->extract_urls_one_per_photo_sorted($photos_payload);
+		$urls = $this->extract_urls_one_per_photo_sorted($photos_payload);
 
-        // Safety: wipe empty photos
-        if (empty($urls)) {
-            $this->logger->log("Photos: no usable URLs — clearing old meta.");
-            delete_post_thumbnail($post_id);
+		if (empty($urls)) {
+			$this->logger->log("Photos: no usable URLs — clearing old meta.");
+			delete_post_thumbnail($post_id);
+			delete_post_meta($post_id, self::META_FEATURED_URL);
+			delete_post_meta($post_id, self::META_FEATURED_THUMB);
+			delete_post_meta($post_id, self::META_GALLERY_URLS);
+			$this->delete_discrete_fields($post_id);
+			return;
+		}
 
-            delete_post_meta($post_id, self::META_FEATURED_URL);
-            delete_post_meta($post_id, self::META_GALLERY_URLS);
+		// De-dupe + cap list
+		$urls = array_values(array_unique($urls));
+		if (count($urls) > self::MAX_URLS) {
+			$this->logger->log("Photos: URL count exceeded " . self::MAX_URLS . ", truncating.");
+			$urls = array_slice($urls, 0, self::MAX_URLS);
+		}
 
-            $this->delete_discrete_fields($post_id);
-            return;
-        }
+		// Full-size featured = first sorted URL
+		update_post_meta($post_id, self::META_FEATURED_URL, $urls[0]);
 
-        // De‑dupe + cap list
-        $urls = array_values(array_unique($urls));
-        if (count($urls) > self::MAX_URLS) {
-            $this->logger->log("Photos: URL count exceeded " . self::MAX_URLS . ", truncating.");
-            $urls = array_slice($urls, 0, self::MAX_URLS);
-        }
+		// Thumb = mediumThumbnailScaleImageUrl from first photo (tile-safe size)
+		$thumb_url = $this->extract_thumb_url_from_first_photo($photos_payload);
+		if ($thumb_url) {
+			update_post_meta($post_id, self::META_FEATURED_THUMB, $thumb_url);
+			$this->logger->log("Photos: thumb URL written: {$thumb_url}");
+		} else {
+			// Fallback: use the full-size featured URL so the meta is always populated
+			update_post_meta($post_id, self::META_FEATURED_THUMB, $urls[0]);
+			$this->logger->log("Photos: no thumb URL found, falling back to featured URL for thumb.");
+		}
+		
+		/**
+		 * Extract thumb URL from the first photo in the payload (by displayOrder).
+		 * Uses mediumThumbnailScaleImageUrl preferentially — right size for tiles.
+		 * Falls back to largeThumbnailScaleImageUrl, then mediumScaleImageUrl.
+		 */
+		private function extract_thumb_url_from_first_photo(array $photos_payload): string {
+			if (empty($photos_payload)) return '';
 
-        // Featured image = first URL in sorted list
-        update_post_meta($post_id, self::META_FEATURED_URL, $urls[0]);
+			// Sort by displayOrder to get the cover photo first
+			$sorted = array_filter($photos_payload, fn($p) => is_array($p) && isset($p['uid']));
+			usort($sorted, fn($a, $b) => (int)($a['displayOrder'] ?? 999999) <=> (int)($b['displayOrder'] ?? 999999));
 
-        // Full gallery meta
-        update_post_meta($post_id, self::META_GALLERY_URLS, $urls);
+			$first = reset($sorted);
+			if (!$first) return '';
 
-        // One discrete field per URL
-        $this->write_discrete_fields($post_id, $urls);
+			$candidates = [
+				$first['mediumThumbnailScaleImageUrl'] ?? null,
+				$first['largeThumbnailScaleImageUrl']  ?? null,
+				$first['mediumScaleImageUrl']          ?? null,
+			];
 
-        // Ensure no WP media attachment interferes
-        delete_post_thumbnail($post_id);
+			foreach ($candidates as $u) {
+				if ($u && $this->is_usable_image_url(trim($u))) {
+					return trim($u);
+				}
+			}
 
-        $this->logger->log("Photos: saved " . count($urls) . " URLs (featured + gallery + discrete).");
-    }
+			return '';
+		}
+
+		// Full gallery meta
+		update_post_meta($post_id, self::META_GALLERY_URLS, $urls);
+
+		// One discrete field per URL
+		$this->write_discrete_fields($post_id, $urls);
+
+		// Ensure no WP media attachment interferes
+		delete_post_thumbnail($post_id);
+
+		$this->logger->log("Photos: saved " . count($urls) . " URLs (featured + thumb + gallery + discrete).");
+	}
 
     /**
      * Convert photo payload → 1 usable URL per photo, sorted by displayOrder.

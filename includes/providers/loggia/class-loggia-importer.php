@@ -172,15 +172,27 @@ class HavenConnect_Loggia_Importer {
     $this->save_payload_snapshot($post_id, 'loggia_desc_json', $desc);
     $this->save_payload_snapshot($post_id, 'loggia_loc_json', $loc);
 
-    // ---- Media URLs -> gallery meta ----
-    $urls = $this->extract_media_urls($media);
-    if (!empty($urls)) {
-      update_post_meta($post_id, '_hcn_gallery_urls', array_values($urls));
-      update_post_meta($post_id, '_hcn_featured_image_url', $urls[0]);
-      $this->log("Loggia importer: saved " . count($urls) . " media URLs.");
-    } else {
-      $this->log("Loggia importer: no media URLs detected.");
-    }
+	// ---- Media URLs -> gallery meta ----
+	$urls = $this->extract_media_urls($media);
+	if (!empty($urls)) {
+		update_post_meta($post_id, '_hcn_gallery_urls', array_values($urls));
+		update_post_meta($post_id, '_hcn_featured_image_url', $urls[0]);
+
+		// Thumb: extract from media response directly (get_media requests sizes=thumb)
+		$thumb_url = $this->extract_thumb_url_from_media($media);
+		if ($thumb_url) {
+			update_post_meta($post_id, '_hcn_featured_thumb_url', $thumb_url);
+			$this->log("Loggia importer: thumb URL written: {$thumb_url}");
+		} else {
+			// Fallback: use first gallery URL so the meta is always populated
+			update_post_meta($post_id, '_hcn_featured_thumb_url', $urls[0]);
+			$this->log("Loggia importer: no thumb URL found, falling back to first gallery URL.");
+		}
+
+		$this->log("Loggia importer: saved " . count($urls) . " media URLs.");
+	} else {
+		$this->log("Loggia importer: no media URLs detected.");
+	}
 
     // ---- Location -> meta (best effort) ----
     [$lat, $lng] = $this->extract_lat_lng($loc);
@@ -315,6 +327,40 @@ class HavenConnect_Loggia_Importer {
 
     return array_values(array_unique($urls));
   }
+  
+	/**
+	 * Extract a thumb-sized URL from the Loggia media response.
+	 * get_media() is called with sizes=thumb so the album entries
+	 * should contain tile-appropriate image URLs.
+	 * Returns the first image URL from the album, or empty string.
+	 */
+	private function extract_thumb_url_from_media($media): string {
+		if (!is_array($media)) return '';
+
+		// Album structure (same as extract_media_urls checks)
+		if (!empty($media['album']) && is_array($media['album'])) {
+			$album = $media['album'];
+			usort($album, fn($a, $b) => (int)($a['image_sort'] ?? 0) <=> (int)($b['image_sort'] ?? 0));
+
+			foreach ($album as $img) {
+				if (!is_array($img)) continue;
+				$u = trim((string)($img['image'] ?? ''));
+				if ($u !== '') return $u;
+			}
+		}
+
+		// Other list shapes
+		$list = $media['images'] ?? $media['items'] ?? $media['media'] ?? null;
+		if (is_array($list)) {
+			foreach ($list as $img) {
+				if (!is_array($img)) continue;
+				$u = trim((string)($img['image'] ?? $img['url'] ?? ''));
+				if ($u !== '') return $u;
+			}
+		}
+
+		return '';
+	}
 
   private function extract_lat_lng($loc): array {
     // Best-effort: look for common keys anywhere in loc payload.
