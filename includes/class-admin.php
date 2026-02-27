@@ -15,6 +15,9 @@ class HavenConnect_Admin {
     add_action('admin_menu', [$this, 'menu']);
     add_action('admin_init', [$this, 'settings_init']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+	add_action('admin_init', function () {
+	  $this->maybe_migrate_options_v1(); 
+	});
   }
 
   public function menu() {
@@ -128,6 +131,57 @@ class HavenConnect_Admin {
     ";
     wp_add_inline_style('wp-admin', $css);
   }
+  
+  private function maybe_migrate_options_v1() {
+  // Run once
+  if (get_option('hcn_migrated_v1')) {
+    return;
+  }
+
+  $old = get_option(self::OPTION_KEY);
+  if (!is_array($old) || empty($old)) {
+    update_option('hcn_migrated_v1', 1);
+    return;
+  }
+
+  // New options (start with existing, so re-running won’t wipe)
+  $settings  = get_option('hcn_settings', []);
+  $hostfully = get_option('hcn_hostfully', []);
+  $loggia    = get_option('hcn_loggia', []);
+
+  if (!is_array($settings))  $settings = [];
+  if (!is_array($hostfully)) $hostfully = [];
+  if (!is_array($loggia))    $loggia = [];
+
+  // ---- Map old -> new ----
+  // Google Maps -> settings
+  if (!empty($old['google_maps_api_key']) && empty($settings['google_maps_api_key'])) {
+    $settings['google_maps_api_key'] = $old['google_maps_api_key'];
+  }
+
+  // Hostfully -> hostfully
+  if (!empty($old['api_key']) && empty($hostfully['api_key'])) {
+    $hostfully['api_key'] = $old['api_key'];
+  }
+  if (!empty($old['agency_uid']) && empty($hostfully['agency_uid'])) {
+    $hostfully['agency_uid'] = $old['agency_uid'];
+  }
+
+  // Loggia -> loggia
+  foreach (['loggia_base_url', 'loggia_api_key', 'loggia_page_id', 'loggia_locale'] as $k) {
+    if (!empty($old[$k]) && empty($loggia[$k])) {
+      $loggia[$k] = $old[$k];
+    }
+  }
+
+  // Save new options
+  update_option('hcn_settings', $settings);
+  update_option('hcn_hostfully', $hostfully);
+  update_option('hcn_loggia', $loggia);
+
+  // Mark migrated
+  update_option('hcn_migrated_v1', 1);
+}
 
   private function active_tab(): string {
     $tab = sanitize_text_field($_GET['tab'] ?? 'import');
