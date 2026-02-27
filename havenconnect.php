@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 define('HCN_VER',  '0.2.4');
 define('HCN_FILE', __FILE__);
-define('HCN_DIR',  plugin_dir_path(__FILE__)); 
+define('HCN_DIR',  plugin_dir_path(__FILE__));
 define('HCN_URL',  plugin_dir_url(__FILE__));
 define('HCN_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('HCN_AVAIL_DB_VERSION', 1);
