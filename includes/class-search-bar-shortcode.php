@@ -1,5 +1,5 @@
 <?php
-if (!defined('ABSPATH')) exit;
+if ( ! defined('ABSPATH') ) { exit; }
 
 class HavenConnect_Search_Bar_Shortcode {
 
@@ -9,10 +9,8 @@ class HavenConnect_Search_Bar_Shortcode {
 
   public function render($atts = []) {
     $atts = shortcode_atts([
-      // Where to submit (fallback). If blank, uses current page.
       'action' => '',
-      // If 1, auto-updates URL + triggers hcn:search-updated on changes.
-      'ajax'   => '1',
+      'ajax'   => '1', // 1 = update URL + emit hcn:search-updated
     ], $atts, 'hcn_search_bar');
 
     $action = trim((string)$atts['action']);
@@ -30,153 +28,198 @@ class HavenConnect_Search_Bar_Shortcode {
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
-    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.1.4');
-    wp_enqueue_script('hcn-search-bar', $base . 'assets/hcn-search-bar.js', [], '1.1.4', true);
+    // Existing CSS for bar (keep)
+    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.2.0');
 
-    wp_add_inline_script('hcn-search-bar', 'window.HCN_SEARCH_BAR = ' . wp_json_encode([
-      'ajax'      => ($atts['ajax'] === '1'),
-      'action'    => $action,
-      'checkin'   => $checkin,
-      'checkout'  => $checkout,
-      'guests'    => $guests,
-      'bedrooms'  => $bedrooms,
-      'bathrooms' => $bathrooms,
-      'location'  => $location,
+    // New sheet assets
+    wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '1.0.0');
+    wp_enqueue_script('hcn-search-sheet', $base . 'assets/hcn-search-sheet.js', [], '1.0.0', true);
+	
+	$settings = get_option('hcn_settings', []);
+	$popular_ids = isset($settings['popular_locations']) && is_array($settings['popular_locations'])
+	  ? array_map('intval', $settings['popular_locations'])
+	  : [];
+
+	$popular_terms = [];
+	if (!empty($popular_ids)) {
+	  $terms = get_terms([
+		'taxonomy' => 'property_loc',
+		'include'  => $popular_ids,
+		'hide_empty' => false,
+	  ]);
+	  if (!is_wp_error($terms)) {
+		// Keep the same order as selected IDs
+		$by_id = [];
+		foreach ($terms as $t) $by_id[(int)$t->term_id] = $t;
+		foreach ($popular_ids as $id) {
+		  if (isset($by_id[$id])) {
+			$popular_terms[] = [
+			  'id'   => (int)$by_id[$id]->term_id,
+			  'name' => $by_id[$id]->name,
+			  'slug' => $by_id[$id]->slug,
+			];
+		  }
+		}
+	  }
+	}
+
+    // Keep config object name the same
+    wp_add_inline_script('hcn-search-sheet', 'window.HCN_SEARCH_BAR = ' . wp_json_encode([
+		'ajax'      => ($atts['ajax'] === '1'),
+		'action'    => $action,
+		'checkin'   => $checkin,
+		'checkout'  => $checkout,
+		'guests'    => $guests,
+		'bedrooms'  => $bedrooms,
+		'bathrooms' => $bathrooms,
+		'location'  => $location,
+		'ajaxUrl' => admin_url('admin-ajax.php'),
+		'locTax'  => 'property_loc',
+		'popularLocations' => $popular_terms,
     ]) . ';', 'before');
 
     ob_start();
     ?>
-    <form class="hcn-searchbar" method="get" action="<?php echo esc_url($action); ?>" data-hcn-searchbar>
-      <div class="hcn-searchbar__main">
+    <form class="hcn-searchbar" data-hcn-searchbar method="get" action="<?php echo esc_url($action); ?>">
+      <!-- Hidden fields that drive URL + results -->
+      <input type="hidden" name="checkin"   value="<?php echo esc_attr($checkin); ?>"  data-hcn-checkin>
+      <input type="hidden" name="checkout"  value="<?php echo esc_attr($checkout); ?>" data-hcn-checkout>
+      <input type="hidden" name="guests"    value="<?php echo esc_attr($guests); ?>"   data-hcn-guests>
+      <input type="hidden" name="bedrooms"  value="<?php echo esc_attr($bedrooms); ?>" data-hcn-bedrooms>
+      <input type="hidden" name="bathrooms" value="<?php echo esc_attr($bathrooms); ?>" data-hcn-bathrooms>
 
-        <!-- Location (free text for now) -->
-        <label class="hcn-sf hcn-sf--location">
-          <span class="hcn-sf__icon"><img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/location.jpg'); ?>" alt="" loading="lazy" decoding="async">
-          </span>
-          <input
-            class="hcn-sf__input"
-            type="text"
-            name="location"
-            placeholder="Add location"
-            value="<?php echo esc_attr($location); ?>"
-            autocomplete="off"
-            data-hcn-location
-          />
-        </label>
+      <!-- Visible "location" value is stored in this input so it goes into querystring -->
+      <input type="hidden" name="location" value="<?php echo esc_attr($location); ?>" data-hcn-location>
 
-        <div class="hcn-sf__sep" aria-hidden="true"></div>
-
-        <!-- Dates field opens modal -->
-        <button type="button" class="hcn-sf hcn-sf--dates" data-hcn-open="dates">
-          <span class="hcn-sf__icon"><img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/dates.jpg'); ?>" alt="" loading="lazy" decoding="async">
-          </span>
-          <span class="hcn-sf__text" data-hcn-dates-label>Add dates</span>
+      <!-- BAR -->
+      <div class="hcn-searchbar__row">
+        <button type="button" class="hcn-searchbar__seg" data-hcn-sheet-open="location">
+          <span class="hcn-searchbar__icon">
+			<img class="hcn-searchbar__icon-img" src="<?php echo esc_url($base . 'assets/img/location.jpg'); ?>" alt="">
+		  </span>
+          <span data-hcn-location-label><?php echo $location ? esc_html($location) : 'Add location'; ?></span>
         </button>
 
-        <!-- real fields used by results/map/search -->
-        <input type="hidden" name="checkin"  value="<?php echo esc_attr($checkin); ?>"  data-hcn-checkin>
-        <input type="hidden" name="checkout" value="<?php echo esc_attr($checkout); ?>" data-hcn-checkout>
+        <div class="hcn-searchbar__sep"></div>
 
-        <div class="hcn-sf__sep" aria-hidden="true"></div>
+        <button type="button" class="hcn-searchbar__seg" data-hcn-sheet-open="dates">
+          <span class="hcn-searchbar__icon">
+			<img class="hcn-searchbar__icon-img" src="<?php echo esc_url($base . 'assets/img/dates.jpg'); ?>" alt="">
+		  </span>
+          <span data-hcn-dates-label><?php echo ($checkin && $checkout) ? esc_html("$checkin → $checkout") : 'Add dates'; ?></span>
+        </button> 
 
-        <!-- Guests (simple number) -->
-        <label class="hcn-sf hcn-sf--guests">
-          <img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/user.jpg'); ?>" alt="" loading="lazy" decoding="async">
-          <input
-            class="hcn-sf__input"
-            type="number"
-            min="1"
-            step="1"
-            name="guests"
-            placeholder="Add guests"
-            value="<?php echo esc_attr($guests); ?>"
-            data-hcn-guests
-          />
-        </label>
+        <div class="hcn-searchbar__sep"></div>
 
-        <!-- Hidden min filters (single source of truth, prevents duplicates) -->
-        <input type="hidden" name="bedrooms" value="<?php echo esc_attr($bedrooms); ?>" data-hcn-bedrooms>
-        <input type="hidden" name="bathrooms" value="<?php echo esc_attr($bathrooms); ?>" data-hcn-bathrooms>
+        <button type="button" class="hcn-searchbar__seg" data-hcn-sheet-open="guests">
+          <span class="hcn-searchbar__icon">
+			<img class="hcn-searchbar__icon-img" src="<?php echo esc_url($base . 'assets/img/user.jpg'); ?>" alt="">
+		  </span>
+          <span data-hcn-guests-label><?php echo $guests ? esc_html($guests) : 'Add guests'; ?></span>
+        </button>
 
-        <!-- Submit -->
         <button type="submit" class="hcn-searchbar__go" aria-label="Search">
-          <img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/Button.jpg'); ?>" alt="" loading="lazy" decoding="async">
+			<img class="hcn-searchbar__icon-img" src="<?php echo esc_url($base . 'assets/img/button.jpg'); ?>" alt="">
+		</button>
+
+        <button type="button" class="hcn-searchbar__filters" data-hcn-open="filters">
+          <span class="hcn-searchbar__filters-ic">
+			<img class="hcn-searchbar__icon-img" src="<?php echo esc_url($base . 'assets/img/filter.jpg'); ?>" alt="">
+		  </span> Filters
+          <span class="hcn-dot" data-hcn-filters-dot style="display:none;"></span>
         </button>
       </div>
 
-      <!-- Filters button -->
-      <button type="button" class="hcn-filters" data-hcn-open="filters">
-        <span class="hcn-filters__icon"><img class="hcn-sf__icon-img" src="<?php echo esc_url(HCN_PLUGIN_URL . 'assets/img/filter.jpg'); ?>" alt="" loading="lazy" decoding="async">
-          </span>
-        <span>Filters</span>
-        <span class="hcn-filters__dot" data-hcn-filters-dot></span>
-      </button>
+      <!-- SHEET OVERLAY -->
+      <div class="hcn-sheet-overlay" data-hcn-sheet-overlay aria-hidden="true">
+        <div class="hcn-sheet" role="dialog" aria-modal="true" aria-label="Search options">
+          <button type="button" class="hcn-sheet__close" data-hcn-sheet-close aria-label="Close">×</button>
 
-      <!-- Filters modal -->
-      <div class="hcn-modal" data-hcn-modal="filters" aria-hidden="true">
-        <div class="hcn-modal__backdrop" data-hcn-close></div>
-        <div class="hcn-modal__panel" role="dialog" aria-modal="true" aria-label="Filters">
-          <div class="hcn-modal__head">
-            <div class="hcn-modal__title">Filters</div>
-            <button type="button" class="hcn-modal__x" data-hcn-close aria-label="Close">×</button>
-          </div>
-
-          <div class="hcn-modal__body">
-            <!-- NOTE: No name="" here (prevents duplicate query params) -->
-            <div class="hcn-field">
-              <label>Guests (min)</label>
-              <input type="number" min="1" step="1" value="<?php echo esc_attr($guests); ?>" data-hcn-filter-guests>
-            </div>
-            <div class="hcn-field">
-              <label>Bedrooms (min)</label>
-              <input type="number" min="0" step="1" value="<?php echo esc_attr($bedrooms); ?>" data-hcn-filter-bedrooms>
-            </div>
-            <div class="hcn-field">
-              <label>Bathrooms (min)</label>
-              <input type="number" min="0" step="1" value="<?php echo esc_attr($bathrooms); ?>" data-hcn-filter-bathrooms>
+          <!-- WHERE -->
+          <div class="hcn-acc" data-hcn-acc="location">
+            <button type="button" class="hcn-acc__head" data-hcn-acc-head>
+              <div>
+                <div class="hcn-acc__title">Where?</div>
+                <div class="hcn-acc__value" data-hcn-acc-value><?php echo $location ? esc_html($location) : 'Add location'; ?></div>
+              </div>
+              <div>▾</div>
+            </button>
+            <div class="hcn-acc__panel">
+              <input class="hcn-loc-input" type="text" placeholder="Type a destination or property" data-hcn-loc-search>
+              <div class="hcn-loc-list">
+                <div class="hcn-muted" style="font-size:11px; opacity:.6; margin:8px 0 6px;">POPULAR DESTINATIONS</div>
+                <div class="hcn-loc-item" data-hcn-loc-pick="Anglesey">📍 Anglesey, North Wales</div>
+                <div class="hcn-loc-item" data-hcn-loc-pick="Cotswolds">📍 Cotswolds, England</div>
+                <div class="hcn-loc-item" data-hcn-loc-pick="Lake District">📍 Lake District, England</div>
+              </div>
             </div>
           </div>
 
-          <div class="hcn-modal__foot">
-            <button type="button" class="hcn-btn hcn-btn--ghost" data-hcn-clear-filters>Clear</button>
-            <button type="button" class="hcn-btn hcn-btn--primary" data-hcn-apply-filters>Apply</button>
+          <!-- WHEN -->
+          <div class="hcn-acc" data-hcn-acc="dates">
+            <button type="button" class="hcn-acc__head" data-hcn-acc-head>
+              <div>
+                <div class="hcn-acc__title">When?</div>
+                <div class="hcn-acc__value" data-hcn-acc-value><?php echo ($checkin && $checkout) ? esc_html("$checkin → $checkout") : 'Add dates'; ?></div>
+              </div>
+              <div>▾</div>
+            </button>
+            <div class="hcn-acc__panel">
+              <div class="hcn-cal-head">
+                <button type="button" data-hcn-cal-prev aria-label="Previous month">‹</button>
+                <div class="hcn-cal-month" data-hcn-cal-month></div>
+                <button type="button" data-hcn-cal-next aria-label="Next month">›</button>
+              </div>
+
+              <div class="hcn-muted" data-hcn-cal-hint style="font-size:12px; opacity:.7; margin-top:6px;"></div>
+
+              <div class="hcn-cal-grid" data-hcn-cal-grid></div>
+            </div>
+          </div>
+
+          <!-- WHO -->
+          <div class="hcn-acc" data-hcn-acc="guests">
+            <button type="button" class="hcn-acc__head" data-hcn-acc-head>
+              <div>
+                <div class="hcn-acc__title">Who?</div>
+                <div class="hcn-acc__value" data-hcn-acc-value><?php echo $guests ? esc_html($guests) : 'Add guests'; ?></div>
+              </div>
+              <div>▾</div>
+            </button>
+            <div class="hcn-acc__panel">
+              <?php
+              $rows = [
+                ['key'=>'adults', 'label'=>'Adults',  'meta'=>'Ages 16 or above'],
+                ['key'=>'children','label'=>'Children','meta'=>'Ages 2 – 16'],
+                ['key'=>'infants', 'label'=>'Infants', 'meta'=>'Under 2'],
+                ['key'=>'pets',    'label'=>'Pets',    'meta'=>'A cleaning fee may apply'],
+              ];
+              foreach ($rows as $r):
+              ?>
+              <div class="hcn-guest-row" data-hcn-guest="<?php echo esc_attr($r['key']); ?>">
+                <div>
+                  <div style="font-weight:700;"><?php echo esc_html($r['label']); ?></div>
+                  <div class="hcn-guest-meta"><?php echo esc_html($r['meta']); ?></div>
+                </div>
+                <div class="hcn-stepper">
+                  <button type="button" data-hcn-step="-">–</button>
+                  <span class="hcn-stepper__n" data-hcn-step-out>0</span>
+                  <button type="button" data-hcn-step="+">+</button>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+
+          <div class="hcn-sheet__actions">
+            <button type="button" class="hcn-sheet__clear" data-hcn-sheet-clear>Clear all</button>
+            <button type="button" class="hcn-sheet__apply" data-hcn-sheet-apply>View homes</button>
           </div>
         </div>
       </div>
 
-      <!-- Dates modal (single range calendar) -->
-      <div class="hcn-modal" data-hcn-modal="dates" aria-hidden="true">
-        <div class="hcn-modal__backdrop" data-hcn-close></div>
-        <div class="hcn-modal__panel" role="dialog" aria-modal="true" aria-label="Dates">
-          <div class="hcn-modal__head">
-            <div class="hcn-modal__title">Add dates</div>
-            <button type="button" class="hcn-modal__x" data-hcn-close aria-label="Close">×</button>
-          </div>
-
-          <div class="hcn-modal__body">
-            <div class="hcn-cal">
-              <div class="hcn-cal__head">
-                <button type="button" class="hcn-cal__nav" data-hcn-cal-prev aria-label="Previous month">‹</button>
-                <div class="hcn-cal__month" data-hcn-cal-month></div>
-                <button type="button" class="hcn-cal__nav" data-hcn-cal-next aria-label="Next month">›</button>
-              </div>
-
-              <div class="hcn-cal__dow">
-                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-              </div>
-
-              <div class="hcn-cal__grid" data-hcn-cal-grid></div>
-              <div class="hcn-cal__hint" data-hcn-cal-hint>Select check-in, then check-out</div>
-            </div>
-          </div>
-
-          <div class="hcn-modal__foot">
-            <button type="button" class="hcn-btn hcn-btn--ghost" data-hcn-clear-dates>Clear</button>
-            <button type="button" class="hcn-btn hcn-btn--primary" data-hcn-apply-dates>Apply</button>
-          </div>
-        </div>
-      </div>
-
+      <!-- KEEP your existing Filters modal markup here if you already had it (unchanged) -->
+      <?php /* If your current version includes filters modal HTML, keep it below */ ?>
     </form>
     <?php
     return ob_get_clean();

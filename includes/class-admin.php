@@ -150,8 +150,17 @@ class HavenConnect_Admin {
 
   public function sanitize_settings($in) {
     $in = is_array($in) ? $in : [];
+
+    $popular = isset($in['popular_locations']) ? (array)$in['popular_locations'] : [];
+    $popular = array_values(array_filter(array_map('intval', $popular)));
+
+    $featured = isset($in['featured_features']) ? (array)$in['featured_features'] : [];
+    $featured = array_values(array_filter(array_map('intval', $featured)));
+
     return [
       'google_maps_api_key' => sanitize_text_field($in['google_maps_api_key'] ?? ''),
+      'popular_locations'   => $popular,
+      'featured_features'   => $featured,
     ];
   }
 
@@ -191,7 +200,30 @@ class HavenConnect_Admin {
     return is_array($o) ? $o : [];
   }
 
-  public function render_settings_page() {
+  
+  private function render_term_multiselect(string $taxonomy, array $selected_ids, string $name_attr, int $size = 10): void {
+    $terms = get_terms([
+      'taxonomy'   => $taxonomy,
+      'hide_empty' => false,
+      'number'     => 500,
+      'orderby'    => 'name',
+      'order'      => 'ASC',
+    ]);
+
+    if (is_wp_error($terms)) {
+      echo '<p class="hcn-muted hcn-small">Could not load terms for taxonomy: <code>' . esc_html($taxonomy) . '</code></p>';
+      return;
+    }
+
+    echo '<select multiple size="' . (int)$size . '" name="' . esc_attr($name_attr) . '" style="min-width:320px; max-width:520px;">';
+    foreach ($terms as $t) {
+      $sel = in_array((int)$t->term_id, $selected_ids, true) ? ' selected' : '';
+      echo '<option value="' . (int)$t->term_id . '"' . $sel . '>' . esc_html($t->name) . '</option>';
+    }
+    echo '</select>';
+  }
+
+public function render_settings_page() {
     if (!current_user_can('manage_options')) return;
 
     $tab = $this->active_tab();
@@ -226,16 +258,43 @@ class HavenConnect_Admin {
 
     echo '<div class="hcn-grid">';
 
-      // Settings (Google Maps)
+      // Settings (Google Maps + Search config)
       echo '<div class="hcn-card">';
         echo '<h2>Settings</h2>';
         echo '<form method="post" action="options.php">';
           settings_fields('hcn_settings_group');
+
+          // Google Maps
           echo '<div class="hcn-kv">';
             echo '<label for="hcn_gmaps">Google Maps API Key</label>';
             echo '<input id="hcn_gmaps" type="text" name="' . esc_attr(self::OPT_SETTINGS) . '[google_maps_api_key]" value="' . esc_attr($settings['google_maps_api_key'] ?? '') . '">';
           echo '</div>';
           echo '<p class="description hcn-small">Needs Maps JavaScript API enabled + billing in Google Cloud.</p>';
+
+          echo '<hr class="hcn-hr">';
+
+          // Popular Locations (property_loc) 
+          $popular = isset($settings['popular_locations']) && is_array($settings['popular_locations']) ? array_map('intval', $settings['popular_locations']) : [];
+          echo '<div class="hcn-kv">';
+            echo '<label for="hcn_popular_locations">Popular locations</label>';
+            echo '<div>';
+              $this->render_term_multiselect('property_loc', $popular, self::OPT_SETTINGS . '[popular_locations][]', 8);
+              echo '<p class="description hcn-small">Shown under “POPULAR DESTINATIONS” in the Location popup.</p>';
+            echo '</div>'; 
+          echo '</div>';
+
+          echo '<hr class="hcn-hr">';
+
+          // Featured Features (hcn_feature)
+          $featured = isset($settings['featured_features']) && is_array($settings['featured_features']) ? array_map('intval', $settings['featured_features']) : [];
+          echo '<div class="hcn-kv">';
+            echo '<label for="hcn_featured_features">Featured features</label>';
+            echo '<div>';
+              $this->render_term_multiselect('hcn_feature', $featured, self::OPT_SETTINGS . '[featured_features][]', 8);
+              echo '<p class="description hcn-small">Used to populate the “Features” chips in the Filters popup.</p>';
+            echo '</div>';
+          echo '</div>';
+
           submit_button('Save Settings');
         echo '</form>';
       echo '</div>';

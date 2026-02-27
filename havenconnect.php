@@ -45,7 +45,8 @@ hcn_require('class-map-shortcode.php');
 hcn_require('class-loggia-availability-importer.php');
 // hcn_require('class-availability-cron.php'); // optional — cron to clear stale availability
 // hcn_require('class-import-cron.php');        // optional — cron imports
-
+require_once __DIR__ . '/includes/ajax/class-location-suggest.php';
+new HavenConnect_Location_Suggest_Ajax();
 
 // Availability table install/upgrade on activation
 register_activation_hook(HCN_FILE, function () {
