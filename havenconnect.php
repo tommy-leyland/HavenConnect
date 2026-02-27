@@ -27,7 +27,7 @@ function hcn_require($rel) {
  * Includes (order matters: core, CPT, utilities, importers, admin)
  */
 hcn_require('helpers.php');
-hcn_require('register-post-types.php');          // must exist and register CPT 'hcn_property'
+hcn_require('register-post-types.php');
 hcn_require('class-logger.php');
 hcn_require('class-api-client.php');
 hcn_require('class-taxonomy-handler.php');
@@ -40,24 +40,11 @@ hcn_require('class-admin.php');
 hcn_require('admin-save-hooks.php');
 hcn_require('class-availability-cleanup-hooks.php');
 hcn_require('class-search-shortcode.php');
-hcn_require('class-loggia-availability-importer.php');
+hcn_require('class-search-bar-shortcode.php');
 hcn_require('class-map-shortcode.php');
-require_once plugin_dir_path(__FILE__) . 'includes/class-search-shortcode.php';
-require_once plugin_dir_path(__FILE__) . 'includes/class-map-shortcode.php';
-require_once plugin_dir_path(__FILE__) . 'includes/class-search-bar-shortcode.php';
-
-// hcn_require('class-availability-cron.php'); optional later - cron jobs to clear database of old availability data
-new HavenConnect_Search_Shortcode($GLOBALS['wpdb']);
-// hcn_require('class-import-cron.php'); // optional later cron
-
-
-/**
- * Shortcodes
- */
-
-$GLOBALS['havenconnect']['map'] = new HavenConnect_Map_Shortcode();
-$search_bar = new HavenConnect_Search_Bar_Shortcode();
-$GLOBALS['havenconnect']['search_bar_shortcode'] = $search_bar;
+hcn_require('class-loggia-availability-importer.php');
+// hcn_require('class-availability-cron.php'); // optional — cron to clear stale availability
+// hcn_require('class-import-cron.php');        // optional — cron imports
 
 
 // Availability table install/upgrade on activation
@@ -144,6 +131,11 @@ add_action('init', function () {
     if (post_type_exists($cpt)) {
         add_post_type_support($cpt, 'custom-fields');
     }
+	
+	// --- Shortcodes (instantiated here so they share the same init pass)
+    $GLOBALS['havenconnect']['map']               = new HavenConnect_Map_Shortcode();
+    $GLOBALS['havenconnect']['search_bar']        = new HavenConnect_Search_Bar_Shortcode();
+    $GLOBALS['havenconnect']['search_shortcode']  = new HavenConnect_Search_Shortcode();
 
 }, 5);
 

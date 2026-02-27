@@ -63,43 +63,6 @@ class HavenConnect_Loggia_Importer {
     $contentP = $client->get_content($property_id, $page_id, $locale);
     $mark("Loggia importer: got content type=" . gettype($contentP));
 
-    $urls = [];
-    if (is_array($contentP)) {
-      // 1) album[] images
-      if (!empty($contentP['album']) && is_array($contentP['album'])) {
-        usort($contentP['album'], function($a, $b){
-          return (int)($a['image_sort'] ?? 0) <=> (int)($b['image_sort'] ?? 0);
-        });
-        foreach ($contentP['album'] as $img) {
-          if (!is_array($img)) continue;
-          $u = $img['image'] ?? '';
-          if (is_string($u) && $u !== '') $urls[] = $u;
-        }
-      }
-
-      // 2) featured_images string fallback
-      if (empty($urls) && !empty($contentP['details']['featured_images'])) {
-        $raw = (string)$contentP['details']['featured_images'];
-        $parts = array_filter(array_map('trim', explode(';', $raw)));
-        $urls = array_values($parts);
-      }
-    }
-
-    $urls = array_values(array_unique($urls));
-
-    if (!empty($urls)) {
-      update_post_meta($post_id, '_hcn_gallery_urls', $urls);
-
-      $featured = $contentP['base_image'] ?? $urls[0] ?? '';
-      if (is_string($featured) && $featured !== '') {
-        update_post_meta($post_id, '_hcn_featured_image_url', $featured);
-      }
-
-      $this->log("Loggia importer: saved " . count($urls) . " gallery URLs.");
-    } else {
-      $this->log("Loggia importer: no gallery URLs detected.");
-    }
-
     $mark("Loggia importer: calling get_descriptions");
     $desc     = $client->get_descriptions($property_id, $page_id, $locale);
     $mark("Loggia importer: got desc type=" . gettype($desc));

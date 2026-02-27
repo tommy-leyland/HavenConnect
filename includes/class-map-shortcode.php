@@ -19,11 +19,15 @@ class HavenConnect_Map_Shortcode {
       'height'   => '560px',
     ], $atts);
 
-    $opts = get_option('havenconnect_settings', []);
-    $google_key = trim($opts['google_maps_api_key'] ?? '');
-    if (!$google_key) {
-      return '<p><strong>Map unavailable:</strong> missing Google Maps API key in HavenConnect settings.</p>';
-    }
+	$settings   = get_option('hcn_settings', []);
+	if (!is_array($settings)) $settings = [];
+	$google_key = trim($settings['google_maps_api_key'] ?? '');
+
+	// Legacy fallback
+	if (!$google_key) {
+	  $legacy     = get_option('havenconnect_options', []);
+	  $google_key = trim((is_array($legacy) ? $legacy['google_maps_api_key'] : '') ?? '');
+	}
 
     // Google Maps + map JS
     wp_enqueue_script(
@@ -45,7 +49,7 @@ class HavenConnect_Map_Shortcode {
      data-ajax="<?php echo esc_attr(admin_url('admin-ajax.php')); ?>"
      data-nonce="<?php echo esc_attr($nonce); ?>"
      data-per-page="<?php echo esc_attr((int)$atts['per_page']); ?>">
-  <div id="hcn-map" style="width:100%;height:100vh; ?>;"></div>
+  <div id="hcn-map" style="width:100%;height:<?php echo esc_attr($atts['height']); ?>;"></div>
   <div class="hcn-map-popover"></div>
 </div>
     <?php
@@ -248,9 +252,20 @@ class HavenConnect_Map_Shortcode {
       wp_send_json_success($cached);
     }
 
-    $opts  = get_option('havenconnect_settings', []);
-    $apiKey = trim($opts['api_key'] ?? '');
-    $agencyUid = trim($opts['agency_uid'] ?? '');
+	$hf_opts   = get_option('hcn_hostfully', []);
+	if (!is_array($hf_opts)) $hf_opts = [];
+
+	$apiKey    = trim($hf_opts['api_key'] ?? '');
+	$agencyUid = trim($hf_opts['agency_uid'] ?? '');
+
+	// Legacy fallback
+	if (!$apiKey || !$agencyUid) {
+	  $legacy    = get_option('havenconnect_options', []);
+	  if (is_array($legacy)) {
+		if (!$apiKey)    $apiKey    = trim($legacy['api_key']    ?? '');
+		if (!$agencyUid) $agencyUid = trim($legacy['agency_uid'] ?? '');
+	  }
+	}
 
     if (!$apiKey) {
       wp_send_json_error(['message' => 'Missing Hostfully API key'], 500);
