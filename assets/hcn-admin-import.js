@@ -15,7 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
   loggiaTestBtn?.addEventListener("click", async (e) => {
     e.preventDefault();
     if (loggiaOut) loggiaOut.textContent = "Testing…";
-
     try {
       const fd = new FormData();
       fd.append("action", "hcn_loggia_test");
@@ -29,7 +28,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const ct = (res.headers.get("content-type") || "").toLowerCase();
-
       if (!ct.includes("application/json")) {
         const text = await res.text();
         const where = res.redirected ? ` (redirected to ${res.url})` : "";
@@ -37,14 +35,15 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const json = await res.json();
-
       if (!json || !json.success) {
         const msg = (json && json.data && json.data.message) ? json.data.message : "Test failed";
         if (loggiaOut) loggiaOut.textContent = "❌ " + msg;
         return;
       }
 
-      if (loggiaOut) loggiaOut.textContent = "✅ " + json.data.message + "\nFirst property_id: " + (json.data.first_property_id || "n/a");
+      if (loggiaOut) {
+        loggiaOut.textContent = "✅ " + json.data.message + "\nFirst property_id: " + (json.data.first_property_id || "n/a");
+      }
     } catch (err) {
       if (loggiaOut) loggiaOut.textContent = "❌ " + err.message;
     }
@@ -55,57 +54,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setListEmpty() {
     if (!listEl) return;
-    listEl.innerHTML = "<em>Nothing imported yet in this session.</em>";
+    listEl.innerHTML = "Nothing imported yet in this session.";
   }
 
   function escapeHtml(s) {
     return String(s || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+      .replaceAll("&", "&")
+      .replaceAll("<", "<")
+      .replaceAll(">", ">")
+      .replaceAll('"', """)
+      .replaceAll("'", "'");
   }
 
   function addImportedItem({ name, post_id, provider }) {
     if (!listEl) return;
     if (listEl.querySelector("em")) listEl.innerHTML = "";
-
     const div = document.createElement("div");
     div.style.padding = "6px 0";
-    const link = post_id
-      ? `<a href="${editBase}${post_id}" target="_blank" rel="noopener">edit</a>`
-      : "";
-    div.innerHTML = `<strong>${escapeHtml(name)}</strong> <span style="opacity:.7">(${provider || "hostfully"})</span> — post_id=${post_id} ${link}`;
+    const link = post_id ? `` : "";
+    div.innerHTML = `${escapeHtml(name)} (${provider || "hostfully"}) — post_id=${post_id} ${link}`;
     listEl.appendChild(div);
   }
 
-async function post(data) {
-  const fd = new FormData();
-  Object.entries(data).forEach(([k, v]) => fd.append(k, v));
+  async function post(data) {
+    const fd = new FormData();
+    Object.entries(data).forEach(([k, v]) => fd.append(k, v));
 
-  const res = await fetch(ajaxUrl, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "X-Requested-With": "XMLHttpRequest" },
-    body: fd,
-  });
+    const res = await fetch(ajaxUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      body: fd,
+    });
 
-  const ct = (res.headers.get("content-type") || "").toLowerCase();
-  const text = await res.text();
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    const text = await res.text();
 
-  if (!ct.includes("application/json")) {
-    throw new Error(`Non-JSON response ${res.status}: ${text.slice(0, 200)}`);
+    if (!ct.includes("application/json")) {
+      throw new Error(`Non-JSON response ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    const json = JSON.parse(text);
+    if (!json || !json.success) {
+      const msg = (json && json.data && json.data.message) ? json.data.message : "Request failed";
+      throw new Error(msg);
+    }
+    return json.data;
   }
-
-  const json = JSON.parse(text);
-  if (!json || !json.success) {
-    const msg = (json && json.data && json.data.message) ? json.data.message : "Request failed";
-    throw new Error(msg);
-  }
-
-  return json.data;
-}
 
   async function pollLog() {
     if (polling) return;
@@ -113,7 +108,6 @@ async function post(data) {
 
     const tick = async () => {
       if (!polling) return;
-
       try {
         const data = await post({
           action: "hcn_get_log",
@@ -125,7 +119,6 @@ async function post(data) {
           logEl.value += data.chunk;
           logEl.scrollTop = logEl.scrollHeight;
         }
-
         if (data && typeof data.offset === "number") logOffset = data.offset;
       } catch (e) {
         // ignore polling errors
@@ -141,7 +134,8 @@ async function post(data) {
     polling = false;
   }
 
-  async function startQueue({ provider, mode, property_uid } = {}) {
+  // ✅ MINIMAL CHANGE: accept first_n and pass it to server
+  async function startQueue({ provider, mode, property_uid, first_n } = {}) {
     if (logEl) logEl.value = "";
     logOffset = 0;
     setListEmpty();
@@ -152,6 +146,7 @@ async function post(data) {
       provider: provider || "hostfully",
       mode: mode || "all",
       property_uid: property_uid || "",
+      first_n: String(first_n || 0), // <-- NEW
     });
 
     await pollLog();
@@ -192,6 +187,7 @@ async function post(data) {
 
   async function runBox(box, action) {
     const provider = (box.dataset.provider === "all" ? "both" : box.dataset.provider) || "hostfully";
+
     const modeEl = box.querySelector('[data-role="mode"]');
     const mode = modeEl ? modeEl.value : (box.dataset.mode || "all");
 
@@ -204,10 +200,9 @@ async function post(data) {
     // --- Loggia: Sync availability/pricing (no queue) ---
     if (action === "sync-avail") {
       const fromEl = box.querySelector('[data-role="avail-from"]');
-      const toEl   = box.querySelector('[data-role="avail-to"]');
+      const toEl = box.querySelector('[data-role="avail-to"]');
       const from = fromEl && fromEl.value ? fromEl.value : "";
-      const to   = toEl && toEl.value ? toEl.value : "";
-
+      const to = toEl && toEl.value ? toEl.value : "";
       const pid = (singleId || "").trim();
       if (!pid) throw new Error("Enter a Loggia property ID first (use the ‘Test single ID’ box).");
 
@@ -228,11 +223,13 @@ async function post(data) {
       return;
     }
 
+    // ✅ MINIMAL CHANGE: for run-first, tell server our first_n
     const q = await startQueue({
       provider,
       mode,
-      // Hostfully-only: server uses property_uid to build a 1-item queue
+      // Hostfully-only single test
       property_uid: (action === "run-single") ? singleId : "",
+      first_n: (action === "run-first") ? firstN : 0, // <-- NEW
     });
 
     const total = q.total || 0;
@@ -255,7 +252,6 @@ async function post(data) {
   pingBtn?.addEventListener("click", async (e) => {
     e.preventDefault();
     if (pingOut) pingOut.textContent = "Pinging…";
-
     try {
       const fd = new FormData();
       fd.append("action", "hcn_ping");
@@ -283,7 +279,6 @@ async function post(data) {
   });
 
   const boxes = document.querySelectorAll(".hcn-import-box");
-  // quick safety: if this is 0, you're on the wrong tab or markup mismatch
   if (!boxes.length) return;
 
   boxes.forEach((box) => {
