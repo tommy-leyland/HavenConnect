@@ -60,7 +60,7 @@ class HavenConnect_Admin {
       'hcn-admin-import',
       plugin_dir_url(__FILE__) . '../assets/hcn-admin-import.js',
       [],
-      '1.3.6',
+      '1.3.10',
       true
     );
 
