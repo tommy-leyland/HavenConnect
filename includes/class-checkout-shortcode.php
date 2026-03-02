@@ -133,7 +133,7 @@ class HavenConnect_Checkout_Shortcode {
             'optional_fees'       => $fees,
             'rental_agreement_url'=> $rental_agreement_url,
             'agency_uid'          => $agencyUid,
-			'status'              => 'BOOKED'
+			'lead'                => $this->resolve_booking_lead_config($post_id),
         ]);
     }
 
@@ -294,6 +294,8 @@ class HavenConnect_Checkout_Shortcode {
         $api = $GLOBALS['havenconnect']['api'] ?? null;
         if (!$api) wp_send_json_error(['message' => 'API unavailable.'], 500);
 
+        $lead_config = $this->resolve_booking_lead_config($post_id);
+
         $lead_payload = [
           'agencyUid'   => $agency_uid,
           'propertyUid' => $uid,
@@ -339,8 +341,8 @@ class HavenConnect_Checkout_Shortcode {
           'guestPhone'     => $phone,
 
           'source' => 'HOSTFULLY_DBS',
-          'type'   => 'BOOKING',
-          'status' => 'BOOKED',
+          'type'   => $lead_config['type'],
+          'status' => $lead_config['status'],
 
           'totalPrice' => $total,
           'currency'   => $currency,
@@ -388,6 +390,51 @@ class HavenConnect_Checkout_Shortcode {
             if (is_numeric($c) && $c > 0) return (float)$c;
         }
         return 0.0;
+    }
+
+    /**
+     * Resolve Hostfully lead type/status from property booking type.
+     *
+     * Supported input values (post meta):
+     * - instant_book / instant_booking / booking / BOOKING
+     * - booking_request / pending_approved / PENDING_APPROVED
+     * - booking_inquiry / inquiry / pending / PENDING
+     */
+    private function resolve_booking_lead_config(int $post_id): array {
+        $raw = (string) get_post_meta($post_id, '_hcn_booking_type', true);
+        if ($raw === '') $raw = (string) get_post_meta($post_id, '_havenconnect_booking_type', true);
+        if ($raw === '') $raw = (string) get_post_meta($post_id, 'booking_type', true);
+
+        $normalized = strtolower(trim($raw));
+        $normalized = str_replace([' ', '-'], '_', $normalized);
+
+        $config = [
+            'booking_type'    => 'instant_book',
+            'type'            => 'BOOKING',
+            'status'          => 'BOOKED',
+            'requires_payment'=> true,
+            'button_label'    => 'Complete Booking',
+        ];
+
+        if (in_array($normalized, ['booking_request', 'pending_approved', 'request'], true)) {
+            $config = [
+                'booking_type'    => 'booking_request',
+                'type'            => 'PENDING_APPROVED',
+                'status'          => 'NEW',
+                'requires_payment'=> true,
+                'button_label'    => 'Complete Booking Request',
+            ];
+        } elseif (in_array($normalized, ['booking_inquiry', 'inquiry', 'pending'], true)) {
+            $config = [
+                'booking_type'    => 'booking_inquiry',
+                'type'            => 'PENDING',
+                'status'          => 'NEW',
+                'requires_payment'=> false,
+                'button_label'    => 'Send Booking Inquiry',
+            ];
+        }
+
+        return apply_filters('hcn_checkout_booking_lead_config', $config, $raw, $post_id);
     }
 
     private function diff_nights(string $a, string $b): int {
