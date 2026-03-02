@@ -179,6 +179,21 @@ class HavenConnect_Api_Client {
     return $parsed['amenities'];
   }
 
+
+  /**
+   * Get property DBS settings (Direct Booking System config)
+   * GET https://{host}/api/v3.2/dbs/properties/{propertyUid}
+   *
+   * Docs: https://dev.hostfully.com/reference/getpropertydbssettings
+   */
+  public function get_property_dbs_settings(string $apiKey, string $propertyUid) {
+    $endpoints = [
+      "https://platform.hostfully.com/api/v3.2/dbs/properties/{$propertyUid}" => ["X-HOSTFULLY-APIKEY" => $apiKey],
+      "https://sandbox.hostfully.com/api/v3.2/dbs/properties/{$propertyUid}"  => ["X-HOSTFULLY-APIKEY" => $apiKey],
+    ];
+    return $this->request($endpoints);
+  }
+
   /**
    * Calculate quote (v3.2)
    * POST https://platform.hostfully.com/api/v3.2/quotes
@@ -294,7 +309,7 @@ class HavenConnect_Api_Client {
     ];
     $res  = wp_remote_post($url, $args);
     if (is_wp_error($res)) return [];
-    $code = wp_remote_retrieve_response_code($res);
+    $code = wp_remote_retrieve_response_code($res); 
     $body = wp_remote_retrieve_body($res);
     error_log('[HCN quote_promo] HTTP ' . $code . ' response: ' . substr($body, 0, 1000));
     if ($code < 200 || $code >= 300) return [];

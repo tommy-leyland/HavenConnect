@@ -40,8 +40,8 @@ class HavenConnect_Checkout_Shortcode {
 
         $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__)) . '/';
 
-        wp_enqueue_script('hcn-checkout', $base . 'assets/hcn-checkout.js', [], '1.1.3', true);
-        wp_enqueue_style('hcn-checkout',  $base . 'assets/hcn-checkout.css', [], '1.1.3');
+        wp_enqueue_script('hcn-checkout', $base . 'assets/hcn-checkout.js', [], '1.3.1', true);
+        wp_enqueue_style('hcn-checkout',  $base . 'assets/hcn-checkout.css', [], '1.3.1');
 
         if ($stripe_pub) {
             wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
@@ -111,6 +111,9 @@ class HavenConnect_Checkout_Shortcode {
         // Rental agreement URL (stored as post meta or from Hostfully settings)
         $rental_agreement_url = (string) get_post_meta($post_id, 'rental_agreement_url', true);
 
+        // Booking mode for this property (instant|request|inquiry)
+        $mode = $this->get_booking_mode($post_id);
+
         wp_send_json_success([
             'property' => [
                 'post_id' => $post_id,
@@ -133,7 +136,10 @@ class HavenConnect_Checkout_Shortcode {
             'optional_fees'       => $fees,
             'rental_agreement_url'=> $rental_agreement_url,
             'agency_uid'          => $agencyUid,
-			'status'              => 'BOOKED'
+            'booking_type'       => $mode['booking_type'],
+            'payment_required'   => $mode['payment_required'],
+            'lead_type'          => $mode['lead_type'],
+            'lead_status'        => $mode['lead_status'],
         ]);
     }
 
@@ -256,18 +262,9 @@ class HavenConnect_Checkout_Shortcode {
         $promo_code = strtoupper(sanitize_text_field($_POST['promo_code'] ?? ''));
         $agency_uid = sanitize_text_field($_POST['agency_uid']    ?? '');
         $intent_id  = sanitize_text_field($_POST['payment_intent'] ?? ''); // Stripe PI id
-	        $agreed     = !empty($_POST['rental_agreement']);
-		$adults   = max(1, (int)($_POST['adults'] ?? 1));
-		$children = max(0, (int)($_POST['children'] ?? 0));
-		$infants  = max(0, (int)($_POST['infants'] ?? 0));
-		$pets     = max(0, (int)($_POST['pets'] ?? 0));
+        $agreed     = !empty($_POST['rental_agreement']);
 
-		$address1 = sanitize_text_field($_POST['address1'] ?? '');
-		$address2 = sanitize_text_field($_POST['address2'] ?? '');
-		$city     = sanitize_text_field($_POST['city'] ?? '');
-		$state    = sanitize_text_field($_POST['state'] ?? '');
-		$zip      = sanitize_text_field($_POST['zip'] ?? '');
-		$country  = strtoupper(sanitize_text_field($_POST['country'] ?? 'GB'));
+        $mode = $this->get_booking_mode($post_id);
 
         // Optional fee UIDs the guest selected
         $selected_fees = array_map('sanitize_text_field', (array)($_POST['selected_fees'] ?? []));
@@ -277,6 +274,10 @@ class HavenConnect_Checkout_Shortcode {
         }
         if (!$agreed) {
             wp_send_json_error(['message' => 'You must accept the rental agreement.'], 400);
+        }
+
+        if ($mode['payment_required'] && !$intent_id) {
+            wp_send_json_error(['message' => 'Payment could not be verified. Please try again.'], 400);
         }
 
         $uid = (string) get_post_meta($post_id, '_havenconnect_uid', true);
@@ -295,59 +296,41 @@ class HavenConnect_Checkout_Shortcode {
         if (!$api) wp_send_json_error(['message' => 'API unavailable.'], 500);
 
         $lead_payload = [
-          'agencyUid'   => $agency_uid,
-          'propertyUid' => $uid,
+            'agencyUid'       => $agency_uid,
+            'propertyUid'     => $uid,
 
-          // Dates: send both "Date" and "LocalDate" variants (Hostfully docs + current platform validation)
-          'checkInDate'            => $checkin,
-          'checkOutDate'           => $checkout,
-          'checkInDateTime'        => $checkin . 'T00:00:00Z',
-          'checkOutDateTime'       => $checkout . 'T00:00:00Z',
-          'checkInLocalDate'       => $checkin,
-          'checkOutLocalDate'      => $checkout,
-          'checkInLocalDateTime'   => $checkin . 'T00:00:00',
-          'checkOutLocalDateTime'  => $checkout . 'T00:00:00',
+            // Dates (we send multiple variants for compatibility)
+            'checkInDate'          => $checkin,
+            'checkOutDate'         => $checkout,
+            'checkInDateTime'      => $checkin . 'T00:00:00Z',
+            'checkOutDateTime'     => $checkout . 'T00:00:00Z',
+            'checkInLocalDate'     => $checkin,
+            'checkOutLocalDate'    => $checkout,
+            'checkInLocalDateTime' => $checkin . 'T00:00:00',
+            'checkOutLocalDateTime'=> $checkout . 'T00:00:00',
 
-          // Guests: quote endpoint uses "guests"; keep numberOfGuests too in case lead expects it
-          'guests'         => $guests,
-          'numberOfGuests' => $guests,
-					  
-			'guestInformation' => [
-			  'firstName' => $first,
-			  'lastName'  => $last,
-			  'email'     => $email,
-			  'phoneNumber' => $phone,
+            'guests'          => $guests,
+            'numberOfGuests'  => $guests,
 
-			  // Address fields (Hostfully stores these exact keys)
-			  'address1'    => $address1 ?: null,
-			  'address2'    => $address2 ?: null,
-			  'city'        => $city ?: null,
-			  'state'       => $state ?: null,
-			  'zipCode'     => $zip ?: null,
-			  'countryCode' => $country ?: null,
+            // Basic guest fields (legacy + convenience)
+            'guestFirstName'  => $first,
+            'guestLastName'   => $last,
+            'guestEmail'      => $email,
+            'guestPhone'      => $phone,
 
-			  // Guest counts (Hostfully stores these exact keys)
-			  'adultCount'    => $adults,
-			  'childrenCount' => $children,
-			  'infantCount'   => $infants,
-			  'petCount'      => $pets,
-			],
+            'source'          => 'HOSTFULLY_DBS',
 
-          'guestFirstName' => $first,
-          'guestLastName'  => $last,
-          'guestEmail'     => $email,
-          'guestPhone'     => $phone,
+            // Booking mode mapping (instant|request|inquiry)
+            'type'            => $mode['lead_type'],
+            'status'          => $mode['lead_status'],
 
-          'source' => 'HOSTFULLY_DBS',
-          'type'   => 'BOOKING',
-          'status' => 'BOOKED',
-
-          'totalPrice' => $total,
-          'currency'   => $currency,
-
-          'stripePaymentIntentId' => $intent_id,
+            'totalPrice'      => $total,
+            'currency'        => $currency,
         ];
         if ($promo_code) $lead_payload['promoCode'] = $promo_code;
+        if ($mode['payment_required']) {
+            $lead_payload['stripePaymentIntentId'] = $intent_id;
+        }
 
         $lead = $api->create_lead($apiKey, $lead_payload);
 
@@ -418,6 +401,29 @@ class HavenConnect_Checkout_Shortcode {
         return $items;
     }
 
+    private function get_booking_mode(int $post_id): array {
+        $raw = (string) get_post_meta($post_id, 'hcn_booking_type', true);
+        $booking_type = in_array($raw, ['instant','request','inquiry'], true) ? $raw : 'instant';
+
+        // Map to Hostfully lead type + status
+        // instant  => BOOKING + BOOKED
+        // request  => BOOKING_REQUEST + PENDING_APPROVED
+        // inquiry  => INQUIRY + PENDING
+        $map = [
+            'instant' => ['lead_type' => 'BOOKING',         'lead_status' => 'BOOKED',           'payment_required' => true],
+            'request' => ['lead_type' => 'BOOKING_REQUEST', 'lead_status' => 'PENDING_APPROVED', 'payment_required' => true],
+            'inquiry' => ['lead_type' => 'INQUIRY',         'lead_status' => 'PENDING',          'payment_required' => false],
+        ];
+
+        $m = $map[$booking_type];
+        return [
+            'booking_type' => $booking_type,
+            'lead_type' => $m['lead_type'],
+            'lead_status' => $m['lead_status'],
+            'payment_required' => (bool) $m['payment_required'],
+        ];
+    }
+
     private function get_optional_fees(string $apiKey, string $propertyUid): array {
         if (!$apiKey || !$propertyUid) return [];
 
@@ -450,10 +456,6 @@ class HavenConnect_Checkout_Shortcode {
                 'amount'=> (float)($f['amount'] ?? $f['value'] ?? 0),
             ];
         }
-		
-		if (($adults + $children) > $guests) {
-		  wp_send_json_error(['message' => 'Adults + children exceeds the selected total guests.'], 400);
-		}
 
         set_transient($cache_key, $optional, HOUR_IN_SECONDS * 6);
         return $optional;

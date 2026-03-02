@@ -46,6 +46,10 @@
       promo_code: '',
       rental_agreement_url: '',
       agency_uid: '',
+      booking_type: 'instant',
+      payment_required: true,
+      lead_type: 'BOOKING',
+      lead_status: 'BOOKED',
       stripe: null,
       elements: null,
       payment_element: null,
@@ -74,6 +78,10 @@
         state.optional_fees        = d.optional_fees || [];
         state.rental_agreement_url = d.rental_agreement_url || '';
         state.agency_uid           = d.agency_uid || '';
+        state.booking_type        = d.booking_type || 'instant';
+        state.payment_required    = !!d.payment_required;
+        state.lead_type           = d.lead_type || 'BOOKING';
+        state.lead_status         = d.lead_status || 'BOOKED';
         render();
       })
       .catch(err => {
@@ -101,7 +109,6 @@
     }
 
     function render() {
-      const totalGuests = parseInt(guests, 10) || 1;
       const cur = state.quote.currency || 'GBP';
       const total = totalWithFees();
       const totalPence = Math.round(total * 100);
@@ -160,7 +167,7 @@
       </div>
     </section>
     ` : ''}
-
+    ${state.payment_required ? `
     <!-- 3. Payment -->
     <section class="hcn-co-section" id="hcn-section-payment">
       <h2 class="hcn-co-section__title">
@@ -172,11 +179,13 @@
       </div>
       <div id="hcn-payment-message" class="hcn-co-payment-msg" hidden></div>
     </section>
+    ` : ''}
+
 
     <!-- 4. Rental agreement -->
     <section class="hcn-co-section" id="hcn-section-agreement">
       <h2 class="hcn-co-section__title">
-        <span class="hcn-co-section__num">${state.optional_fees.length ? '4' : '3'}</span>
+        <span class="hcn-co-section__num">${state.optional_fees.length ? (state.payment_required ? '4' : '3') : (state.payment_required ? '3' : '2')}</span>
         Rental Agreement
       </h2>
       ${state.rental_agreement_url ? `
@@ -192,7 +201,7 @@
 
     <!-- Book button -->
     <button type="button" id="hcn-book-btn" class="hcn-co-book-btn" disabled>
-      <span class="hcn-co-book-btn__label">Complete Booking — ${fmt(total, cur)}</span>
+      <span class="hcn-co-book-btn__label">${state.booking_type === 'inquiry' ? 'Send enquiry' : (state.booking_type === 'request' ? `Submit booking request — ${fmt(total, cur)}` : `Complete booking — ${fmt(total, cur)}`)}</span>
       <span class="hcn-co-book-btn__spinner" hidden></span>
     </button>
     <div id="hcn-book-error" class="hcn-co-book-error" hidden></div>
@@ -231,39 +240,8 @@
           <span class="hcn-co-dates__val">${state.booking.guests}</span>
         </div>
       </div>
-	  
-		<!-- Guest breakdown -->
-		<div class="hcn-co-guest-breakdown">
-		  <div class="hcn-co-guest-breakdown__title">Guest breakdown</div>
 
-		  <div class="hcn-co-field-row">
-			<div class="hcn-co-field">
-			  <label for="hcn-adults">Adults <span class="req">*</span></label>
-			  <input type="number" id="hcn-adults" min="1" step="1" value="${totalGuests}">
-			</div>
-			<div class="hcn-co-field">
-			  <label for="hcn-children">Children</label>
-			  <input type="number" id="hcn-children" min="0" step="1" value="0">
-			</div>
-		  </div>
-
-		  <div class="hcn-co-field-row">
-			<div class="hcn-co-field">
-			  <label for="hcn-infants">Infants</label>
-			  <input type="number" id="hcn-infants" min="0" step="1" value="0">
-			</div>
-			<div class="hcn-co-field">
-			  <label for="hcn-pets">Pets</label>
-			  <input type="number" id="hcn-pets" min="0" step="1" value="0">
-			</div>
-		  </div>
-
-		  <div class="hcn-co-guest-breakdown__meta">
-			Total: <span id="hcn-guest-total">${totalGuests}</span> / ${totalGuests}
-		  </div>
-		</div>
-
-		      <!-- Price breakdown -->
+      <!-- Price breakdown -->
       <div class="hcn-co-breakdown">
         <div class="hcn-co-breakdown__title">Price breakdown</div>
         ${state.quote.line_items.map(li => `
@@ -300,7 +278,7 @@
 `;
 
       bindEvents(totalPence, cur);
-      initStripe(totalPence, cur);
+      if (state.payment_required) initStripe(totalPence, cur);
     }
 
     // ------------------------------------------------------------------ //
@@ -321,50 +299,6 @@
           updateTotals();
         });
       });
-	  
-		const totalGuests = parseInt(guests, 10) || 1;
-
-		const elAdults   = wrap.querySelector('#hcn-adults');
-		const elChildren = wrap.querySelector('#hcn-children');
-		const elInfants  = wrap.querySelector('#hcn-infants');
-		const elGuestTot = wrap.querySelector('#hcn-guest-total');
-
-		function clampInt(v, min, max) {
-		  v = parseInt(v || '0', 10);
-		  if (isNaN(v)) v = 0;
-		  return Math.max(min, Math.min(max, v));
-		}
-
-		function enforceGuestCap(changed) {
-		  let a = clampInt(elAdults?.value, 1, totalGuests);
-		  let c = clampInt(elChildren?.value, 0, totalGuests);
-		  let i = clampInt(elInfants?.value, 0, totalGuests);
-
-		  // pets are NOT counted towards guest total (recommended)
-		  // If you want pets to count, include p in the sum.
-		  const maxNonAdult = totalGuests - 1; // because adults must be >= 1
-		  c = Math.min(c, maxNonAdult);
-		  i = Math.min(i, totalGuests); // independent cap
-
-		  let sum = a + c; // infants do NOT count towards guest total
-
-		  if (sum > totalGuests) {
-			// Reduce adults first to keep UX smooth
-			a = Math.max(1, totalGuests - c);
-			sum = a + c;
-		  }
-
-		  if (elAdults) elAdults.value = String(a);
-		  if (elChildren) elChildren.value = String(c);
-		  if (elInfants) elInfants.value = String(i);
-		  if (elGuestTot) elGuestTot.textContent = String(sum);
-		}
-
-		[elAdults, elChildren, elInfants].forEach(el => {
-		  el?.addEventListener('input', () => enforceGuestCap(el?.id));
-		});
-
-		enforceGuestCap();
 
       // Agreement checkbox
       const agreeChk = wrap.querySelector('#hcn-agree');
@@ -394,7 +328,13 @@
 
       // Update book button label
       const btnLabel = wrap.querySelector('.hcn-co-book-btn__label');
-      if (btnLabel) btnLabel.textContent = `Complete Booking — ${fmt(total, cur)}`;
+      if (btnLabel) {
+        btnLabel.textContent = (state.booking_type === 'inquiry')
+          ? 'Send enquiry'
+          : (state.booking_type === 'request')
+            ? `Submit booking request — ${fmt(total, cur)}`
+            : `Complete booking — ${fmt(total, cur)}`;
+      }
 
       // Rebuild breakdown rows for add-ons
       const bdown = wrap.querySelector('.hcn-co-breakdown');
@@ -413,7 +353,7 @@
       }
 
       // Re-init Stripe with new amount
-      initStripe(totalPence, cur);
+      if (state.payment_required) initStripe(totalPence, cur);
     }
 
     // ------------------------------------------------------------------ //
@@ -530,12 +470,6 @@
       const last  = wrap.querySelector('#hcn-last-name')?.value.trim();
       const email = wrap.querySelector('#hcn-email')?.value.trim();
       const phone = wrap.querySelector('#hcn-phone')?.value.trim();
-	  const adults   = wrap.querySelector('#hcn-adults')?.value || '1';
-		const children = wrap.querySelector('#hcn-children')?.value || '0';
-		const infants  = wrap.querySelector('#hcn-infants')?.value || '0';
-		const pets     = wrap.querySelector('#hcn-pets')?.value || '0';
-
-	  const totalGuests = parseInt(guests, 10) || 1;
 
       if (!first || !last || !email) {
         showError('Please enter your first name, last name, and email address.');
@@ -551,8 +485,14 @@
       let intentId = '';
 
       try {
-        // Confirm payment with Stripe
-        if (state.stripe && state.elements) {
+        // Confirm payment with Stripe (only when required)
+        if (state.payment_required) {
+          if (!state.stripe || !state.elements) {
+            showError('Payment could not be loaded. Please refresh the page and try again.');
+            setLoading(false);
+            return;
+          }
+          
           const stripeResult = await state.stripe.confirmPayment({
             elements: state.elements,
             redirect: 'if_required',
@@ -584,12 +524,8 @@
         fd.append('promo_code',       state.promo_code);
         fd.append('agency_uid',       state.agency_uid);
         fd.append('payment_intent',   intentId);
+        fd.append('booking_type',    state.booking_type);
         fd.append('rental_agreement', '1');
-		fd.append('adults', adults);
-		fd.append('children', children);
-		fd.append('infants', infants);
-		fd.append('pets', pets);
-
         state.selected_fees.forEach(uid => fd.append('selected_fees[]', uid));
 
         const res  = await fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: fd });
@@ -625,7 +561,7 @@
     }
 
     function showError(msg) {
-      const el = wrap.querySelector('#hcn-book-error');
+      const el = wrap.querySelector('#hcn-book-error'); 
       if (!el) return;
       el.textContent = msg;
       el.hidden = false;
@@ -635,4 +571,4 @@
 
 
   });
-})(); 
+})();

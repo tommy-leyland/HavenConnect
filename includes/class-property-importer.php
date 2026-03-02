@@ -146,6 +146,9 @@ class HavenConnect_Property_Importer {
     // 4) Meta
     $this->update_meta($post_id, $data);
 
+    // 4b) DBS settings (booking type etc)
+    $this->sync_property_dbs_settings($apiKey, $uid, $post_id);
+
     // 5) Amenities -> Features taxonomy
     $this->sync_property_amenities($apiKey, $uid, $post_id);
 
@@ -462,6 +465,95 @@ class HavenConnect_Property_Importer {
     }
   }
 
+
+  /**
+   * DBS settings -> booking type meta.
+   * Stores raw DBS response in 'hcn_dbs_settings_raw' for debugging.
+   * Stores normalized booking type in 'hcn_booking_type' as: instant|request|inquiry.
+   */
+  private function sync_property_dbs_settings(string $apiKey, string $propertyUid, int $post_id): void {
+    if (!method_exists($this->api, 'get_property_dbs_settings')) return;
+
+    $payload = $this->api->get_property_dbs_settings($apiKey, $propertyUid);
+
+    if (!is_array($payload) || empty($payload)) {
+      $this->logger->log("DBS: empty for {$propertyUid} (leaving existing hcn_booking_type).");
+      return;
+    }
+
+    // Store raw for inspection (useful while we confirm exact field names)
+    update_post_meta($post_id, 'hcn_dbs_settings_raw', wp_json_encode($payload));
+
+    // Try to find a recognizable booking setting value anywhere in the payload
+    $setting = $this->find_booking_setting_value($payload);
+
+    if (!$setting) {
+      $this->logger->log("DBS: could not detect booking setting for {$propertyUid} (stored raw only).");
+      return;
+    }
+
+    $mapped = $this->map_booking_setting_to_meta($setting);
+    if (!$mapped) {
+      $this->logger->log("DBS: detected booking setting '{$setting}' for {$propertyUid} but couldn't map it (stored raw only).");
+      return;
+    }
+
+    update_post_meta($post_id, 'hcn_booking_type', $mapped);
+    $this->logger->log("DBS: booking type for {$propertyUid} => {$mapped} (source='{$setting}').");
+  }
+
+  /**
+   * Recursively search an array for a booking setting value.
+   * We avoid guessing field names; instead we detect known enum-like values in the payload.
+   */
+  private function find_booking_setting_value($node): ?string {
+    $candidates = [
+      'INSTANT_BOOKING',
+      'INSTANT',
+      'BOOKING_REQUEST',
+      'REQUEST',
+      'BOOKING_INQUIRY',
+      'INQUIRY',
+      'PENDING_APPROVED', // sometimes used in UI wording
+      'PENDING',
+    ];
+
+    if (is_string($node)) {
+      $val = strtoupper(trim($node));
+      foreach ($candidates as $c) {
+        if ($val === $c) return $val;
+      }
+      // also match contains for values like "INSTANT_BOOKING_ENABLED"
+      foreach ($candidates as $c) {
+        if ($c !== '' && strpos($val, $c) !== false) return $val;
+      }
+      return null;
+    }
+
+    if (is_array($node)) {
+      foreach ($node as $k => $v) {
+        $found = $this->find_booking_setting_value($v);
+        if ($found) return $found;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Map detected setting string to our WP meta enum.
+   */
+  private function map_booking_setting_to_meta(string $setting): ?string {
+    $s = strtoupper($setting);
+
+    if (strpos($s, 'INSTANT') !== false) return 'instant';
+    if (strpos($s, 'BOOKING_REQUEST') !== false || $s === 'REQUEST' || strpos($s, 'PENDING_APPROVED') !== false) return 'request';
+    if (strpos($s, 'INQUIRY') !== false || $s === 'PENDING') return 'inquiry';
+
+    return null;
+  }
+
+
   /**
    * Amenities -> Features taxonomy
    */
@@ -491,7 +583,7 @@ class HavenConnect_Property_Importer {
 
       if (!term_exists($label, 'hcn_feature')) {
         $res = wp_insert_term($label, 'hcn_feature');
-        if (!is_wp_error($res)) $this->logger->log("Amenity term added: {$label}");
+        if (!is_wp_error($res)) $this->logger->log("Amenity term added: {$label}"); 
       }
       $terms[] = $label;
     }
