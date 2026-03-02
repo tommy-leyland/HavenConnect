@@ -1,0 +1,410 @@
+/* ==========================================================================
+   HavenConnect — Availability Calendar
+   Skins Flatpickr + booking panel to match a clean property-site aesthetic.
+   ========================================================================== */
+
+/* Wrap -------------------------------------------------------------------- */
+.hcn-cal-wrap {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* Two-column layout: calendar left, panel right */
+.hcn-cal-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.hcn-cal-picker {
+  flex: 1 1 480px;
+  min-width: 0;
+}
+
+.hcn-cal-panel {
+  flex: 0 0 260px;
+  position: sticky;
+  top: 1.5rem;
+}
+
+/* Hide the real input — Flatpickr renders inline */
+.hcn-cal-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Loading state */
+.hcn-cal-loading {
+  padding: 2rem;
+  text-align: center;
+  color: #888;
+  font-size: 0.875rem;
+}
+
+/* ==========================================================================
+   Flatpickr overrides
+   ========================================================================== */
+
+/* Show two months side by side */
+.hcn-cal-picker .flatpickr-calendar {
+  width: 100% !important;
+  max-width: 640px;
+  box-shadow: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.hcn-cal-picker .flatpickr-months {
+  margin-bottom: 0.5rem;
+}
+
+.hcn-cal-picker .flatpickr-month {
+  height: 36px;
+}
+
+.hcn-cal-picker .flatpickr-current-month {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding-top: 6px;
+}
+
+.hcn-cal-picker .flatpickr-weekdays {
+  margin-bottom: 2px;
+}
+
+.hcn-cal-picker .flatpickr-weekday {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Day cells */
+.hcn-cal-picker .flatpickr-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  max-width: 52px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.2;
+}
+
+/* Inline price label */
+.hcn-cal-price {
+  display: block;
+  font-size: 0.6rem;
+  color: #6b7280;
+  margin-top: 1px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Selected / range */
+.hcn-cal-picker .flatpickr-day.selected,
+.hcn-cal-picker .flatpickr-day.startRange,
+.hcn-cal-picker .flatpickr-day.endRange {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+}
+
+.hcn-cal-picker .flatpickr-day.selected .hcn-cal-price,
+.hcn-cal-picker .flatpickr-day.startRange .hcn-cal-price,
+.hcn-cal-picker .flatpickr-day.endRange .hcn-cal-price {
+  color: rgba(255,255,255,0.7);
+}
+
+.hcn-cal-picker .flatpickr-day.inRange {
+  background: #f3f4f6;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Hover */
+.hcn-cal-picker .flatpickr-day:hover:not(.flatpickr-disabled):not(.selected) {
+  background: #f9fafb;
+}
+
+/* Disabled / unavailable */
+.hcn-cal-picker .flatpickr-day.flatpickr-disabled {
+  color: #d1d5db;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.hcn-cal-picker .flatpickr-day.flatpickr-disabled .hcn-cal-price {
+  color: #e5e7eb;
+  text-decoration: none;
+}
+
+/* Checkout-only marker: faint diagonal stripe */
+.hcn-cal-picker .flatpickr-day.hcn-cal-checkout-only {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 4px,
+    rgba(0,0,0,0.06) 4px,
+    rgba(0,0,0,0.06) 5px
+  );
+}
+
+/* Checkin-only: subtle left border accent */
+.hcn-cal-picker .flatpickr-day.hcn-cal-checkin-only {
+  box-shadow: inset 3px 0 0 0 #6366f1;
+}
+
+/* Navigation arrows */
+.hcn-cal-picker .flatpickr-prev-month,
+.hcn-cal-picker .flatpickr-next-month {
+  top: 16px;
+}
+
+.hcn-cal-picker .flatpickr-prev-month svg,
+.hcn-cal-picker .flatpickr-next-month svg {
+  fill: #374151;
+}
+
+/* ==========================================================================
+   Booking panel
+   ========================================================================== */
+
+.hcn-cal-panel__inner {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.25rem 1.25rem 1.5rem;
+}
+
+.hcn-cal-panel__hint {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.hcn-cal-panel__dates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.hcn-cal-panel__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 0.5rem;
+}
+
+.hcn-cal-panel__row:last-child {
+  border-bottom: none;
+}
+
+.hcn-cal-panel__label {
+  color: #6b7280;
+}
+
+.hcn-cal-panel__value {
+  font-weight: 500;
+  color: #111827;
+}
+
+.hcn-cal-panel__row--total {
+  margin-top: 0.25rem;
+  padding-top: 0.6rem;
+  border-top: 2px solid #111827;
+  border-bottom: none;
+}
+
+.hcn-cal-panel__total {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+/* CTA button */
+.hcn-cal-book-btn {
+  display: block;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: #1a1a1a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 0.5rem;
+}
+
+.hcn-cal-book-btn:hover {
+  background: #333;
+}
+
+.hcn-cal-clear-btn {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  background: transparent;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.hcn-cal-clear-btn:hover {
+  color: #111827;
+  border-color: #9ca3af;
+}
+
+/* ==========================================================================
+   Notice bar (min stay, errors)
+   ========================================================================== */
+
+.hcn-cal-notice {
+  margin-top: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.hcn-cal-notice[hidden] {
+  display: none;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 680px) {
+  .hcn-cal-layout {
+    flex-direction: column;
+  }
+
+  .hcn-cal-panel {
+    position: static;
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .hcn-cal-picker .flatpickr-calendar {
+    max-width: 100%;
+  }
+}
+
+/* ==========================================================================
+   Guest selector row
+   ========================================================================== */
+
+.hcn-cal-guest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.hcn-cal-guest-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #111827;
+  min-width: 3rem;
+}
+
+.hcn-cal-guest-stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hcn-cal-guest-btn {
+  width: 36px;
+  height: 36px;
+  background: #f9fafb;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #374151;
+  transition: background 0.12s;
+  flex-shrink: 0;
+}
+
+.hcn-cal-guest-btn:hover {
+  background: #f3f4f6;
+}
+
+.hcn-cal-guest-btn:disabled {
+  color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.hcn-cal-guests {
+  width: 40px;
+  text-align: center;
+  border: none;
+  border-left: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  background: #fff;
+  padding: 0;
+  height: 36px;
+  -moz-appearance: textfield;
+}
+
+.hcn-cal-guests::-webkit-inner-spin-button,
+.hcn-cal-guests::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.hcn-cal-guest-max {
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+/* Calculating spinner text */
+.hcn-cal-panel__calculating {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+/* Checkout-wall day (u=1, co=1) — visible as selectable but marked */
+.hcn-cal-picker .flatpickr-day.hcn-cal-checkout-wall {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 4px,
+    rgba(0,0,0,0.07) 4px,
+    rgba(0,0,0,0.07) 5px
+  );
+  color: #374151;
+}
+
+.hcn-cal-picker .flatpickr-day.hcn-cal-no-checkin {
+  box-shadow: inset 3px 0 0 0 #f59e0b;
+}

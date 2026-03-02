@@ -39,8 +39,8 @@ class HavenConnect_Map_Shortcode {
     );
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(__DIR__) . '/';
-    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.1.7', true);
-    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.1.7'); 
+    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.2.1', true); 
+    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.2.1'); 
 
     $nonce = wp_create_nonce('hcn_map_nonce');
 
@@ -247,6 +247,16 @@ class HavenConnect_Map_Shortcode {
         }
       }
     }
+	
+	$bounds_min = 0;
+	$bounds_max = 0;
+
+	if (!empty($price_map)) {
+	  $vals = array_values($price_map);
+	  // $price_map is float min prices per property
+	  $bounds_min = (int) floor(min($vals));
+	  $bounds_max = (int) ceil(max($vals));
+	}
 
     $items = [];
 

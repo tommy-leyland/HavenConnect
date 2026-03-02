@@ -184,22 +184,121 @@ class HavenConnect_Api_Client {
    * POST https://platform.hostfully.com/api/v3.2/quotes
    */
   public function calculate_quote(string $apiKey, string $agencyUid, string $propertyUid, string $checkin, string $checkout, int $guests = 0): array {
-    $endpoints = [
-      "https://platform.hostfully.com/api/v3.2/quotes" => ["X-HOSTFULLY-APIKEY" => $apiKey],
-    ];
+    $url = "https://platform.hostfully.com/api/v3.2/quotes";
 
     $payload = [
-      'agencyUid'   => $agencyUid,
-      'propertyUid' => $propertyUid,
-      'checkIn'     => $checkin,
-      'checkOut'    => $checkout,
+      'agencyUid'    => $agencyUid,
+      'propertyUid'  => $propertyUid,
+      'checkInDate'  => $checkin,
+      'checkOutDate' => $checkout,
     ];
 
     if ($guests > 0) {
       $payload['guests'] = $guests;
     }
 
-    $parsed = $this->request_post($endpoints, $payload);
+    error_log('[HCN calculate_quote] POST ' . $url . ' payload: ' . wp_json_encode($payload));
+
+    $args = [
+      'timeout' => 20,
+      'headers' => [
+        'X-HOSTFULLY-APIKEY' => $apiKey,
+        'Content-Type'       => 'application/json',
+        'Accept'             => 'application/json',
+      ],
+      'body' => wp_json_encode($payload),
+    ];
+
+    $res = wp_remote_post($url, $args);
+
+    if (is_wp_error($res)) {
+      error_log('[HCN calculate_quote] WP_Error: ' . $res->get_error_message());
+      return [];
+    }
+
+    $code = wp_remote_retrieve_response_code($res);
+    $body = wp_remote_retrieve_body($res);
+
+    error_log('[HCN calculate_quote] HTTP ' . $code . ' response: ' . substr($body, 0, 2000));
+
+    if ($code < 200 || $code >= 300) {
+      return [];
+    }
+
+    $parsed = json_decode($body, true);
+    return is_array($parsed) ? $parsed : [];
+  }
+
+  /**
+   * Create a lead (booking) in Hostfully
+   */
+  public function create_lead(string $apiKey, array $payload): array {
+    $url  = 'https://platform.hostfully.com/api/v3.2/leads';
+
+    // Force raw JSON request body (WP can otherwise form-encode arrays depending on transport)
+    $body = wp_json_encode($payload);
+
+    $args = [
+      'method'      => 'POST',
+      'timeout'     => 20,
+      'redirection' => 5,
+      'blocking'    => true,
+      'data_format' => 'body',
+      'headers'     => [
+        'X-HOSTFULLY-APIKEY' => $apiKey,
+        'Content-Type'       => 'application/json; charset=utf-8',
+        'Accept'             => '*/*',
+      ],
+      'body'        => $body,
+    ];
+
+    error_log('[HCN create_lead] payload: ' . $body);
+    $res  = wp_remote_request($url, $args);
+
+    if (is_wp_error($res)) {
+      error_log('[HCN create_lead] WP_Error: ' . $res->get_error_message());
+      return [];
+    }
+
+    $code = wp_remote_retrieve_response_code($res);
+    $resp_body = wp_remote_retrieve_body($res);
+
+    error_log('[HCN create_lead] HTTP ' . $code . ' response: ' . substr((string)$resp_body, 0, 2000));
+
+    if ($code < 200 || $code >= 300) return [];
+    $parsed = json_decode((string)$resp_body, true);
+    return is_array($parsed) ? $parsed : [];
+  }
+
+  /**
+   * Calculate quote with a promo code applied
+   */
+  public function calculate_quote_with_promo(string $apiKey, string $agencyUid, string $propertyUid, string $checkin, string $checkout, int $guests, string $promoCode): array {
+    $url     = 'https://platform.hostfully.com/api/v3.2/quotes';
+    $payload = [
+      'agencyUid'    => $agencyUid,
+      'propertyUid'  => $propertyUid,
+      'checkInDate'  => $checkin,
+      'checkOutDate' => $checkout,
+      'promoCode'    => $promoCode,
+    ];
+    if ($guests > 0) $payload['guests'] = $guests;
+    $args = [
+      'timeout' => 20,
+      'headers' => [
+        'X-HOSTFULLY-APIKEY' => $apiKey,
+        'Content-Type'       => 'application/json',
+        'Accept'             => 'application/json',
+      ],
+      'body' => wp_json_encode($payload),
+    ];
+    $res  = wp_remote_post($url, $args);
+    if (is_wp_error($res)) return [];
+    $code = wp_remote_retrieve_response_code($res);
+    $body = wp_remote_retrieve_body($res);
+    error_log('[HCN quote_promo] HTTP ' . $code . ' response: ' . substr($body, 0, 1000));
+    if ($code < 200 || $code >= 300) return [];
+    $parsed = json_decode($body, true);
     return is_array($parsed) ? $parsed : [];
   }
 }

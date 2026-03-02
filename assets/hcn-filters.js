@@ -278,6 +278,11 @@
 	  setPriceUI(nextMin, nextMax);
 	});
 	
+	// ✅ Apply any bounds already fetched before this script initialised
+	if (window.HCN_PRICE_BOUNDS) {
+	  window.dispatchEvent(new CustomEvent("hcn:price-bounds", { detail: window.HCN_PRICE_BOUNDS }));
+	}
+	
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

@@ -43,6 +43,8 @@ hcn_require('class-search-shortcode.php');
 hcn_require('class-search-bar-shortcode.php');
 hcn_require('class-map-shortcode.php');
 hcn_require('class-loggia-availability-importer.php');
+hcn_require('class-property-calendar.php');
+hcn_require('class-checkout-shortcode.php');
 // hcn_require('class-availability-cron.php'); // optional — cron to clear stale availability
 // hcn_require('class-import-cron.php');        // optional — cron imports
 require_once __DIR__ . '/includes/ajax/class-location-suggest.php';
@@ -137,6 +139,8 @@ add_action('init', function () {
     $GLOBALS['havenconnect']['map']               = new HavenConnect_Map_Shortcode();
     $GLOBALS['havenconnect']['search_bar']        = new HavenConnect_Search_Bar_Shortcode();
     $GLOBALS['havenconnect']['search_shortcode']  = new HavenConnect_Search_Shortcode();
+	$GLOBALS['havenconnect']['property_calendar'] = new HavenConnect_Property_Calendar();
+	$GLOBALS['havenconnect']['checkout']           = new HavenConnect_Checkout_Shortcode();
 
 }, 5);
 

@@ -158,7 +158,10 @@ class HavenConnect_Admin {
     $featured = array_values(array_filter(array_map('intval', $featured)));
 
     return [
-      'google_maps_api_key' => sanitize_text_field($in['google_maps_api_key'] ?? ''),
+      'google_maps_api_key'        => sanitize_text_field($in['google_maps_api_key'] ?? ''),
+      'stripe_publishable_key'     => sanitize_text_field($in['stripe_publishable_key'] ?? ''),
+      'stripe_secret_key'          => sanitize_text_field($in['stripe_secret_key'] ?? ''),
+      'checkout_page_url'          => sanitize_text_field($in['checkout_page_url'] ?? ''),
       'popular_locations'   => $popular,
       'featured_features'   => $featured,
     ];
@@ -268,6 +271,15 @@ public function render_settings_page() {
           echo '<div class="hcn-kv">';
             echo '<label for="hcn_gmaps">Google Maps API Key</label>';
             echo '<input id="hcn_gmaps" type="text" name="' . esc_attr(self::OPT_SETTINGS) . '[google_maps_api_key]" value="' . esc_attr($settings['google_maps_api_key'] ?? '') . '">';
+            echo '<tr><th scope="row"><label for="hcn_stripe_pub">Stripe Publishable Key</label></th><td>';
+            echo '<input id="hcn_stripe_pub" type="text" class="regular-text" name="' . esc_attr(self::OPT_SETTINGS) . '[stripe_publishable_key]" value="' . esc_attr($settings['stripe_publishable_key'] ?? '') . '" placeholder="pk_live_…">';
+            echo '<p class="description">Your Stripe publishable key (starts with <code>pk_</code>).</p></td></tr>';
+            echo '<tr><th scope="row"><label for="hcn_stripe_sec">Stripe Secret Key</label></th><td>';
+            echo '<input id="hcn_stripe_sec" type="password" class="regular-text" name="' . esc_attr(self::OPT_SETTINGS) . '[stripe_secret_key]" value="' . esc_attr($settings['stripe_secret_key'] ?? '') . '" placeholder="sk_live_…">';
+            echo '<p class="description">Your Stripe secret key (starts with <code>sk_</code>). Stored securely.</p></td></tr>';
+            echo '<tr><th scope="row"><label for="hcn_checkout_url">Checkout Page URL</label></th><td>';
+            echo '<input id="hcn_checkout_url" type="text" class="regular-text" name="' . esc_attr(self::OPT_SETTINGS) . '[checkout_page_url]" value="' . esc_attr($settings['checkout_page_url'] ?? '') . '" placeholder="/checkout/">';
+            echo '<p class="description">URL of the page containing <code>[hcn_checkout]</code>. The calendar Book button will redirect here.</p></td></tr>';
           echo '</div>';
           echo '<p class="description hcn-small">Needs Maps JavaScript API enabled + billing in Google Cloud.</p>';
 

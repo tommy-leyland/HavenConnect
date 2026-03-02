@@ -169,14 +169,30 @@ document.addEventListener("DOMContentLoaded", () => {
     fd.append("per_page", perPage);
     Object.entries(filters).forEach(([k, v]) => fd.append(k, v));
 
-    const json = await postAjax(fd);
-    const items = json?.data?.items || [];
-	
-	if (json?.data?.price_bounds && typeof json.data.price_bounds.min !== "undefined") {
-	  window.dispatchEvent(new CustomEvent("hcn:price-bounds", { detail: json.data.price_bounds }));
+	const json = await postAjax(fd);
+
+	// --- Price bounds (prefer server, fallback to marker "from" prices) --- 
+	let pb = json?.data?.price_bounds || null;
+
+	const items = json?.data?.items || [];
+
+	// If server didn’t return usable bounds, compute from items[].from
+	if (!pb || !pb.max || pb.max <= 0) {
+	  const prices = items
+		.map(it => parseInt(it?.from || 0, 10))
+		.filter(n => Number.isFinite(n) && n > 0);
+
+	  if (prices.length) {
+		pb = { min: Math.min(...prices), max: Math.max(...prices) };
+	  }
 	}
-	
-    if (!items.length) return;
+
+	if (pb && pb.max && pb.max > 0) {
+	  window.HCN_PRICE_BOUNDS = pb;
+	  window.dispatchEvent(new CustomEvent("hcn:price-bounds", { detail: pb }));
+	}
+
+	if (!items.length) return;
 
     const bounds = new google.maps.LatLngBounds();
 
@@ -185,7 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pop.show(latLng, cardHtml(it));
 
         const f = getFiltersFromUrl();
-        if (f.checkin && f.checkout && it.provider === "hostfully" && it.uid) {
+        if (f.checkin && f.checkout && it.provider === "hostfully" && it.uid) { 
           const qfd = new FormData();
           qfd.append("action", "hcn_quote_nightly");
           qfd.append("nonce", nonce);
