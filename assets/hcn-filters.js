@@ -251,6 +251,33 @@
       closePopup();
       syncUrlFromForm();
     });
+	
+	// NEW: receive dynamic bounds (min/max nightly) from map fetch
+	window.addEventListener("hcn:price-bounds", (e) => {
+	  const b = (e && e.detail) ? e.detail : {};
+	  const minB = parseInt(b.min || 0, 10) || 0;
+	  const maxB = parseInt(b.max || 0, 10) || 0;
+
+	  if (!maxB || maxB <= 0) return;
+
+	  // Update bounds used by getRangeBounds()
+	  cfg.priceMin = minB;
+	  cfg.priceMax = maxB;
+
+	  // Update range inputs
+	  if (minR) { minR.min = String(minB); minR.max = String(maxB); }
+	  if (maxR) { maxR.min = String(minB); maxR.max = String(maxB); }
+
+	  // Clamp current values (or snap if empty)
+	  const curMin = inMin && inMin.value ? parseInt(inMin.value, 10) : 0;
+	  const curMax = inMax && inMax.value ? parseInt(inMax.value, 10) : 0;
+
+	  const nextMin = curMin > 0 ? curMin : minB;
+	  const nextMax = curMax > 0 ? curMax : maxB;
+
+	  setPriceUI(nextMin, nextMax);
+	});
+	
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

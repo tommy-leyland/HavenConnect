@@ -171,6 +171,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const json = await postAjax(fd);
     const items = json?.data?.items || [];
+	
+	if (json?.data?.price_bounds && typeof json.data.price_bounds.min !== "undefined") {
+	  window.dispatchEvent(new CustomEvent("hcn:price-bounds", { detail: json.data.price_bounds }));
+	}
+	
     if (!items.length) return;
 
     const bounds = new google.maps.LatLngBounds();
