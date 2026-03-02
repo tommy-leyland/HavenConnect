@@ -46,6 +46,7 @@
       promo_code: '',
       rental_agreement_url: '',
       agency_uid: '',
+      lead: { booking_type: 'instant_book', type: 'BOOKING', status: 'BOOKED', requires_payment: true, button_label: 'Complete Booking' },
       stripe: null,
       elements: null,
       payment_element: null,
@@ -74,6 +75,7 @@
         state.optional_fees        = d.optional_fees || [];
         state.rental_agreement_url = d.rental_agreement_url || '';
         state.agency_uid           = d.agency_uid || '';
+        state.lead                 = d.lead || state.lead;
         render();
       })
       .catch(err => {
@@ -105,6 +107,8 @@
       const cur = state.quote.currency || 'GBP';
       const total = totalWithFees();
       const totalPence = Math.round(total * 100);
+      const requiresPayment = !!state.lead?.requires_payment;
+      const ctaLabel = state.lead?.button_label || 'Complete Booking';
 
       wrap.innerHTML = `
 <div class="hcn-co-wrap">
@@ -161,6 +165,7 @@
     </section>
     ` : ''}
 
+    ${requiresPayment ? `
     <!-- 3. Payment -->
     <section class="hcn-co-section" id="hcn-section-payment">
       <h2 class="hcn-co-section__title">
@@ -172,11 +177,12 @@
       </div>
       <div id="hcn-payment-message" class="hcn-co-payment-msg" hidden></div>
     </section>
+    ` : ''}
 
     <!-- 4. Rental agreement -->
     <section class="hcn-co-section" id="hcn-section-agreement">
       <h2 class="hcn-co-section__title">
-        <span class="hcn-co-section__num">${state.optional_fees.length ? '4' : '3'}</span>
+        <span class="hcn-co-section__num">${state.optional_fees.length ? (requiresPayment ? '4' : '3') : (requiresPayment ? '3' : '2')}</span>
         Rental Agreement
       </h2>
       ${state.rental_agreement_url ? `
@@ -192,7 +198,7 @@
 
     <!-- Book button -->
     <button type="button" id="hcn-book-btn" class="hcn-co-book-btn" disabled>
-      <span class="hcn-co-book-btn__label">Complete Booking — ${fmt(total, cur)}</span>
+      <span class="hcn-co-book-btn__label">${ctaLabel}${requiresPayment ? ` — ${fmt(total, cur)}` : ''}</span>
       <span class="hcn-co-book-btn__spinner" hidden></span>
     </button>
     <div id="hcn-book-error" class="hcn-co-book-error" hidden></div>
@@ -300,7 +306,7 @@
 `;
 
       bindEvents(totalPence, cur);
-      initStripe(totalPence, cur);
+      if (requiresPayment) initStripe(totalPence, cur);
     }
 
     // ------------------------------------------------------------------ //
@@ -394,7 +400,11 @@
 
       // Update book button label
       const btnLabel = wrap.querySelector('.hcn-co-book-btn__label');
-      if (btnLabel) btnLabel.textContent = `Complete Booking — ${fmt(total, cur)}`;
+      if (btnLabel) {
+        const ctaLabel = state.lead?.button_label || 'Complete Booking';
+        const requiresPayment = !!state.lead?.requires_payment;
+        btnLabel.textContent = requiresPayment ? `${ctaLabel} — ${fmt(total, cur)}` : ctaLabel;
+      }
 
       // Rebuild breakdown rows for add-ons
       const bdown = wrap.querySelector('.hcn-co-breakdown');
@@ -413,7 +423,7 @@
       }
 
       // Re-init Stripe with new amount
-      initStripe(totalPence, cur);
+      if (state.lead?.requires_payment) initStripe(totalPence, cur);
     }
 
     // ------------------------------------------------------------------ //
@@ -551,8 +561,8 @@
       let intentId = '';
 
       try {
-        // Confirm payment with Stripe
-        if (state.stripe && state.elements) {
+        // Confirm payment with Stripe when this booking type requires payment
+        if (state.lead?.requires_payment && state.stripe && state.elements) {
           const stripeResult = await state.stripe.confirmPayment({
             elements: state.elements,
             redirect: 'if_required',

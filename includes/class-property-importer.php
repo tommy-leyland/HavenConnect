@@ -430,6 +430,11 @@ class HavenConnect_Property_Importer {
     $to_int = fn($v) => is_numeric($v) ? (int)$v : null;
     $to_float = fn($v) => is_numeric($v) ? (float)$v : null;
 
+    $booking_type = $this->normalize_booking_type($this->pick_booking_type($p));
+    if ($booking_type !== '') {
+      $this->logger->log("Booking type mapped: {$booking_type} for post_id={$post_id}");
+    }
+
     $map = [
       'bedrooms'      => $to_int($p['bedrooms'] ?? null),
       'bathrooms'     => $to_float($p['bathrooms'] ?? null),
@@ -451,6 +456,10 @@ class HavenConnect_Property_Importer {
       'area_unit'     => $area['unitType'] ?? null,
       'license_number'=> $p['rentalLicenseNumber'] ?? null,
       'license_expiry'=> $p['rentalLicenseExpirationDate'] ?? null,
+      // Keep all three keys for checkout compatibility and easier migration.
+      '_hcn_booking_type'         => $booking_type,
+      '_havenconnect_booking_type'=> $booking_type,
+      'booking_type'              => $booking_type,
     ];
 
     foreach ($map as $key => $value) {
@@ -469,6 +478,55 @@ class HavenConnect_Property_Importer {
     $clean = preg_replace('/^(HAS_|IS_)/', '', strtoupper($code));
     $clean = str_replace('_', ' ', $clean);
     return ucwords(strtolower($clean));
+  }
+
+
+  /**
+   * Pull booking type from likely Hostfully property payload keys.
+   */
+  private function pick_booking_type(array $p): string {
+    $candidates = [
+      $p['bookingType'] ?? null,
+      $p['booking_type'] ?? null,
+      $p['bookingPolicy'] ?? null,
+      $p['bookingPolicyType'] ?? null,
+      $p['leadType'] ?? null,
+      $p['defaultLeadType'] ?? null,
+      $p['reservationType'] ?? null,
+      $p['settings']['bookingType'] ?? null,
+      $p['settings']['bookingPolicy'] ?? null,
+      $p['availability']['bookingType'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+      if (is_string($candidate) && trim($candidate) !== '') {
+        return trim($candidate);
+      }
+    }
+
+    return '';
+  }
+
+  /**
+   * Convert provider/raw values into canonical checkout booking type values.
+   */
+  private function normalize_booking_type(string $raw): string {
+    $n = strtolower(trim($raw));
+    if ($n === '') return '';
+
+    if (in_array($n, ['booking_request', 'request', 'pending_approved'], true)) {
+      return 'booking_request';
+    }
+
+    if (in_array($n, ['booking_inquiry', 'inquiry', 'pending'], true)) {
+      return 'booking_inquiry';
+    }
+
+    if (in_array($n, ['instant_book', 'instant_booking', 'instant', 'booking', 'booked'], true)) {
+      return 'instant_book';
+    }
+
+    return $n;
   }
 
   private function sync_property_amenities(string $apiKey, string $propertyUid, int $post_id): void {
