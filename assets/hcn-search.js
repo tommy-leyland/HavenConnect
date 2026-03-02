@@ -94,10 +94,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // External search bar -> emits on window; we sync + run
-  window.addEventListener("hcn:search-updated", () => {
-    syncFormFromUrl();
-    runSearch();
-  });
+	window.addEventListener("hcn:search-updated", () => {
+	  syncFormFromUrl();
+	  runSearch();
+	});
 
   // Back/forward
   window.addEventListener("popstate", () => {

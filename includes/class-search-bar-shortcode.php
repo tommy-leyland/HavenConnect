@@ -29,13 +29,13 @@ class HavenConnect_Search_Bar_Shortcode {
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
     // Existing CSS for bar (keep)
-    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.2.0');
+    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.2.3');
 
     // New sheet assets
-    wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '1.0.1');
-    wp_enqueue_script('hcn-search-sheet', $base . 'assets/hcn-search-sheet.js', [], '1.0.1', true);
-	wp_enqueue_style('hcn-filters', $base . 'assets/hcn-filters.css', [], '1.0.1');
-	wp_enqueue_script('hcn-filters', $base . 'assets/hcn-filters.js', [], '1.0.1', true);
+    wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '1.0.3');
+    wp_enqueue_script('hcn-search-sheet', $base . 'assets/hcn-search-sheet.js', [], '1.0.3', true);
+	wp_enqueue_style('hcn-filters', $base . 'assets/hcn-filters.css', [], '1.0.3');
+	wp_enqueue_script('hcn-filters', $base . 'assets/hcn-filters.js', [], '1.0.3', true);
 	
 	$settings = get_option('hcn_settings', []);
 	$popular_ids = isset($settings['popular_locations']) && is_array($settings['popular_locations'])
@@ -246,9 +246,9 @@ class HavenConnect_Search_Bar_Shortcode {
         </div>
       </div>
 
-      <div class="hcn-filters-overlay" data-hcn-filters-overlay aria-hidden="true">
-		  <div class="hcn-filters" role="dialog" aria-modal="true" aria-label="Filters">
-			<button type="button" class="hcn-filters__close" data-hcn-filters-close aria-label="Close">×</button>
+      <div class="hcn-filters-pop-overlay" data-hcn-filters-pop-overlay aria-hidden="true">
+		<div class="hcn-filters-pop" role="dialog" aria-modal="true" aria-label="Filters">
+			<button type="button" class="hcn-filters__close" data-hcn-filters-pop-close aria-label="Close">×</button>
 			<div class="hcn-filters__title">Filters</div>
 
 			<div class="hcn-facc" data-hcn-facc="price">

@@ -169,9 +169,11 @@
 
       locListWrap.querySelectorAll("[data-hcn-loc-pick]").forEach(el => {
         el.addEventListener("click", () => {
-          const name = el.getAttribute("data-hcn-loc-pick") || "";
-          if (locationInput) locationInput.value = name;
-          if (locSearch) locSearch.value = name;
+			const name = el.getAttribute("data-hcn-loc-pick") || "";
+			const slug = el.getAttribute("data-hcn-loc-slug") || "";
+			if (locationInput) locationInput.value = slug || name;
+			if (locSearch) locSearch.value = name;
+			setBarLabels();
           setBarLabels();
         });
       });

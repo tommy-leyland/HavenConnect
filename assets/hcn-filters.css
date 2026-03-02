@@ -1,15 +1,15 @@
 /* HavenConnect Filters Popup */
 
-.hcn-filters-overlay{
+.hcn-filters-pop-overlay{
   position:fixed;
   inset:0;
   background:rgba(0,0,0,.35);
   display:none;
   z-index:10000;
 }
-.hcn-filters-overlay.is-open{ display:block; }
+.hcn-filters-pop-overlay.is-open{ display:block; }
 
-.hcn-filters{
+.hcn-filters-pop{
   position:absolute;
   right:16px;
   top:72px;
@@ -22,7 +22,7 @@
 }
 
 @media (max-width: 560px){
-  .hcn-filters{ right:50%; transform:translateX(50%); top:16px; width:min(420px, calc(100vw - 32px)); }
+  .hcn-filters-pop{ right:50%; transform:translateX(50%); top:16px; width:min(420px, calc(100vw - 32px)); }
 }
 
 .hcn-filters__close{

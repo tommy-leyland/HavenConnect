@@ -9,8 +9,8 @@
     // open button already exists in your bar
     const openBtn = form.querySelector('[data-hcn-open="filters"]');
 
-    const overlay = form.querySelector("[data-hcn-filters-overlay]");
-    const closeBtn = form.querySelector("[data-hcn-filters-close]");
+	const overlay = form.querySelector("[data-hcn-filters-pop-overlay]");
+	const closeBtn = form.querySelector("[data-hcn-filters-pop-close]");
     const clearBtn = form.querySelector("[data-hcn-filters-clear]");
     const applyBtn = form.querySelector("[data-hcn-filters-apply]");
 
@@ -221,18 +221,29 @@
 
     // Clear / Apply
     clearBtn?.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (inMin) inMin.value = "";
-      if (inMax) inMax.value = "";
-      if (inBeds) inBeds.value = "";
-      if (inBaths) inBaths.value = "";
-      if (inFeatures) inFeatures.value = "";
-      selectedFeatures.clear();
+		if (inMin) inMin.value = "";
+		if (inMax) inMax.value = "";
+		if (inBeds) inBeds.value = "";
+		if (inBaths) inBaths.value = "";
+		if (inFeatures) inFeatures.value = "";
 
-      setPriceUI(0, getRangeBounds().max);
-      setRoomsUI(0, 0);
-      renderChips();
-      syncUrlFromForm();
+		// also clear the visible fields
+		if (minBox) minBox.value = "";
+		if (maxBox) maxBox.value = "";
+
+		const b = getRangeBounds();
+		if (minR) minR.value = String(b.min);
+		if (maxR) maxR.value = String(b.max);
+
+		selectedFeatures.clear();
+
+		// reset labels
+		setPriceUI(0, b.max);
+		setRoomsUI(0, 0);
+		renderChips();
+
+		// IMPORTANT: write URL + trigger update
+		syncUrlFromForm();
     });
 
     applyBtn?.addEventListener("click", (e) => {

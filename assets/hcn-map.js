@@ -20,6 +20,12 @@ document.addEventListener("DOMContentLoaded", () => {
       guests: p.get("guests") || "",
       bedrooms: p.get("bedrooms") || "",
       bathrooms: p.get("bathrooms") || "",
+
+      // NEW: keep map in sync with results
+      location: p.get("location") || "",
+      min_price: p.get("min_price") || "",
+      max_price: p.get("max_price") || "",
+      features: p.get("features") || "",
     };
   };
 

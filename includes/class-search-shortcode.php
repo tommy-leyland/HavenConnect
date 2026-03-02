@@ -22,6 +22,7 @@ class HavenConnect_Search_Shortcode {
 
     $checkin   = sanitize_text_field($_POST['checkin']   ?? '');
     $checkout  = sanitize_text_field($_POST['checkout']  ?? '');
+    $location = sanitize_text_field($_POST['location'] ?? '');
     $guests    = max(0, (int)   ($_POST['guests']    ?? 0));
     $bedrooms  = max(0, (int)   ($_POST['bedrooms']  ?? 0));
     $bathrooms = max(0, (float) ($_POST['bathrooms'] ?? 0));
@@ -30,17 +31,8 @@ class HavenConnect_Search_Shortcode {
 	$max_price = isset($_POST['max_price']) ? (int)$_POST['max_price'] : (isset($_GET['max_price']) ? (int)$_GET['max_price'] : 0);
 	$features_csv = sanitize_text_field($_POST['features'] ?? ($_GET['features'] ?? ''));
 	$feature_slugs = array_values(array_filter(array_map('sanitize_title', array_map('trim', explode(',', $features_csv)))));
-	$html = $this->build_results_html(
-	  $checkin,
-	  $checkout,
-	  $guests,
-	  $bedrooms,
-	  $bathrooms,
-	  $per_page,
-	  (int)$min_price,
-	  (int)$max_price,
-	  $feature_slugs
-	);
+
+    $html = $this->build_results_html($checkin, $checkout, $location, $guests, $bedrooms, $bathrooms, $per_page, (int)$min_price, (int)$max_price, $feature_slugs);
 
     wp_send_json_success([
       'html' => $html,
@@ -72,6 +64,11 @@ class HavenConnect_Search_Shortcode {
     $guests    = max(0, (int)   ($_GET['guests']    ?? 0));
     $bedrooms  = max(0, (int)   ($_GET['bedrooms']  ?? 0));
     $bathrooms = max(0, (float) ($_GET['bathrooms'] ?? 0));
+    $location  = sanitize_text_field($_GET['location'] ?? '');
+    $min_price = isset($_GET['min_price']) ? (int)$_GET['min_price'] : 0;
+    $max_price = isset($_GET['max_price']) ? (int)$_GET['max_price'] : 0;
+    $features_csv = sanitize_text_field($_GET['features'] ?? '');
+    $feature_slugs = array_values(array_filter(array_map('sanitize_title', array_map('trim', explode(',', $features_csv)))));
 
     ob_start();
     ?>
@@ -87,9 +84,10 @@ class HavenConnect_Search_Shortcode {
         <input type="hidden" name="guests"    value="<?php echo esc_attr($guests); ?>">
         <input type="hidden" name="bedrooms"  value="<?php echo esc_attr($bedrooms); ?>">
         <input type="hidden" name="bathrooms" value="<?php echo esc_attr($bathrooms); ?>">
-		<input type="hidden" name="min_price" value="<?php echo esc_attr($_GET['min_price'] ?? ''); ?>">
-		<input type="hidden" name="max_price" value="<?php echo esc_attr($_GET['max_price'] ?? ''); ?>">
-		<input type="hidden" name="features"  value="<?php echo esc_attr($_GET['features'] ?? ''); ?>">
+        <input type="hidden" name="location"  value="<?php echo esc_attr($location); ?>">
+        <input type="hidden" name="min_price" value="<?php echo esc_attr($min_price); ?>">
+        <input type="hidden" name="max_price" value="<?php echo esc_attr($max_price); ?>">
+        <input type="hidden" name="features"  value="<?php echo esc_attr($features_csv); ?>">
       </form>
 
       <div class="hcn-search-status" aria-live="polite"></div>
@@ -97,22 +95,7 @@ class HavenConnect_Search_Shortcode {
       <div class="hcn-results-wrap">
         <?php
           // SSR initial render
-		$min_price = isset($_GET['min_price']) ? (int)$_GET['min_price'] : 0;
-		$max_price = isset($_GET['max_price']) ? (int)$_GET['max_price'] : 0;
-		$features_csv = sanitize_text_field($_GET['features'] ?? '');
-		$feature_slugs = array_values(array_filter(array_map('sanitize_title', array_map('trim', explode(',', $features_csv)))));
-
-		echo $this->build_results_html(
-			$checkin,
-			$checkout,
-			$guests,
-			$bedrooms,
-			$bathrooms,
-			(int)$atts['per_page'],
-			$min_price,
-			$max_price,
-			$feature_slugs
-		);
+          echo $this->build_results_html($checkin, $checkout, $location, $guests, $bedrooms, $bathrooms, (int)$atts['per_page'], $min_price, $max_price, $feature_slugs);
         ?>
       </div>
     </div>
@@ -120,22 +103,35 @@ class HavenConnect_Search_Shortcode {
     return ob_get_clean();
   }
 
-  private function build_results_html(
-	  string $checkin,
-	  string $checkout,
-	  int $guests,
-	  int $bedrooms,
-	  float $bathrooms,
-	  int $per_page,
-	  int $min_price = 0,
-	  int $max_price = 0,
-	  array $feature_slugs = []
-	): string {
+  private function build_results_html(string $checkin, string $checkout, string $location, int $guests, int $bedrooms, float $bathrooms, int $per_page, int $min_price = 0, int $max_price = 0, array $feature_slugs = []): string {
     $args = [
       'post_type'      => 'hcn_property',
       'post_status'    => 'publish',
       'posts_per_page' => $per_page,
     ];
+
+    // Location taxonomy filter (property_loc)
+    $location = trim((string)$location);
+    if ($location !== '') {
+      if (!isset($args['tax_query'])) $args['tax_query'] = [];
+      $args['tax_query'][] = [
+        'taxonomy' => 'property_loc',
+        'field'    => 'slug',
+        'terms'    => [$location],
+      ];
+    }
+
+    // Features filter (hcn_feature)
+    if (!empty($feature_slugs)) {
+      if (!isset($args['tax_query'])) $args['tax_query'] = [];
+      $args['tax_query'][] = [
+        'taxonomy' => 'hcn_feature',
+        'field'    => 'slug',
+        'terms'    => $feature_slugs,
+        'operator' => 'AND',
+      ];
+    }
+
 
     // Availability filter
     if ($checkin && $checkout) {
@@ -147,8 +143,9 @@ class HavenConnect_Search_Shortcode {
       $args['orderby'] = 'post__in';
     }
 	
-	if ($min_price > 0 || $max_price > 0) {
-		$price_ids = $this->get_price_filtered_ids($min_price, $max_price, $checkin, $checkout);	  if (empty($price_ids)) {
+	$price_ids = $this->get_price_filtered_ids($min_price, $max_price, $checkin, $checkout);
+	if (($min_price > 0 || $max_price > 0)) {
+	  if (empty($price_ids)) {
 		return '<div class="hcn-empty">No properties match that price range.</div>';
 	  }
 	  // intersect with existing post__in if set
@@ -174,18 +171,6 @@ class HavenConnect_Search_Shortcode {
     if (!empty($meta_query)) {
       $args['meta_query'] = $meta_query;
     }
-	
-	if (!empty($feature_slugs)) {
-	  $args['tax_query'] = [
-		[
-		  'taxonomy' => 'hcn_feature',
-		  'field'    => 'slug',
-		  'terms'    => $feature_slugs,
-		  'operator' => 'AND',
-		]
-	  ];
-	}
-
     $q = new WP_Query($args);
     if (!$q->have_posts()) {
       return '<div class="hcn-empty">No properties found.</div>';

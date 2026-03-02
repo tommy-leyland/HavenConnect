@@ -39,8 +39,8 @@ class HavenConnect_Map_Shortcode {
     );
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(__DIR__) . '/';
-    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.1.4', true);
-    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.1.4'); 
+    wp_enqueue_script('hcn-map', $base . 'assets/hcn-map.js', ['google-maps'], '1.1.7', true);
+    wp_enqueue_style('hcn-map', $base . 'assets/hcn-map.css', [], '1.1.7'); 
 
     $nonce = wp_create_nonce('hcn_map_nonce');
 
@@ -82,6 +82,85 @@ class HavenConnect_Map_Shortcode {
     if ($bathrooms > 0) $meta_query[] = ['key'=>'bathrooms','value'=>$bathrooms,'type'=>'NUMERIC','compare'=>'>='];
     if ($meta_query) $args['meta_query'] = $meta_query;
     
+	// NEW: taxonomy + price filters (keep map in sync with results)
+	$location = sanitize_text_field($_POST['location'] ?? '');
+	$min_price = isset($_POST['min_price']) ? (int)$_POST['min_price'] : 0;
+	$max_price = isset($_POST['max_price']) ? (int)$_POST['max_price'] : 0; 
+
+	$features_csv = sanitize_text_field($_POST['features'] ?? '');
+	$feature_slugs = array_values(array_filter(array_map('sanitize_title', array_map('trim', explode(',', $features_csv)))));
+
+	// Location taxonomy
+	$location = trim((string)$location);
+	if ($location !== '') {
+	  if (!isset($args['tax_query'])) $args['tax_query'] = [];
+	  $args['tax_query'][] = [
+		'taxonomy' => 'property_loc',
+		'field'    => 'slug',
+		'terms'    => [$location],
+	  ];
+	}
+
+	// Features taxonomy
+	if (!empty($feature_slugs)) {
+	  if (!isset($args['tax_query'])) $args['tax_query'] = [];
+	  $args['tax_query'][] = [
+		'taxonomy' => 'hcn_feature',
+		'field'    => 'slug',
+		'terms'    => $feature_slugs,
+		'operator' => 'AND',
+	  ];
+	}
+
+	// Price range (min nightly) via availability table
+	if ($min_price > 0 || $max_price > 0) {
+	  global $wpdb;
+	  $table = $wpdb->prefix . 'hcn_availability';
+
+	  $where = "unavailable = 0 AND price IS NOT NULL";
+	  $params = [];
+
+	  // If dates are set, filter prices within date window
+	  if ($checkin && $checkout) {
+		$in  = strtotime($checkin);
+		$out = strtotime($checkout);
+		if ($in && $out && $out > $in) {
+		  $where .= " AND for_date >= %s AND for_date < %s";
+		  $params[] = gmdate('Y-m-d', $in);
+		  $params[] = gmdate('Y-m-d', $out);
+		}
+	  }
+
+	  $havingParts = [];
+	  if ($min_price > 0) { $havingParts[] = "MIN(price) >= %d"; $params[] = $min_price; }
+	  if ($max_price > 0) { $havingParts[] = "MIN(price) <= %d"; $params[] = $max_price; }
+	  $having = $havingParts ? ("HAVING " . implode(" AND ", $havingParts)) : "";
+
+	  $sql = "SELECT post_id
+			  FROM {$table}
+			  WHERE {$where}
+			  GROUP BY post_id
+			  {$having}
+			  LIMIT 5000";
+
+	  $ids = $wpdb->get_col($wpdb->prepare($sql, $params));
+	  $ids = array_map('intval', $ids ?: []);
+
+	  if (empty($ids)) {
+		wp_send_json_success(['items' => []]);
+	  }
+
+	  if (!empty($args['post__in'])) {
+		$args['post__in'] = array_values(array_intersect($args['post__in'], $ids));
+		if (empty($args['post__in'])) {
+		  wp_send_json_success(['items' => []]);
+		}
+	  } else {
+		$args['post__in'] = $ids;
+	  }
+
+	  $args['orderby'] = 'post__in';
+	}
 
     // Availability IDs (same logic as your search shortcode: strict rows per night unavailable=0)
     if ($checkin && $checkout) {
