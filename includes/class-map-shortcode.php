@@ -302,7 +302,13 @@ class HavenConnect_Map_Shortcode {
       ];
     }
 
-    wp_send_json_success(['items' => $items]);
+    wp_send_json_success([
+	  'items' => $items,
+	  'price_bounds' => [
+		'min' => (int)$bounds_min,
+		'max' => (int)$bounds_max,
+	  ],
+	]);
   }
 
   /** Quote endpoint: totalWithTaxes -> per-night */
