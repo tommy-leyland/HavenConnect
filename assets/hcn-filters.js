@@ -1,290 +1,279 @@
 (function () {
-  const init = () => {
-    const form = document.querySelector("[data-hcn-searchbar]");
-    if (!form) return;
+    const init = () => {
+        const form = document.querySelector("[data-hcn-searchbar]");
+        if (!form) return;
 
-    const cfg = window.HCN_SEARCH_BAR || {};
-    const ajaxMode = !!cfg.ajax;
+        const cfg      = window.HCN_SEARCH_BAR || {};
+        const ajaxMode = !!cfg.ajax;
 
-    // open button already exists in your bar
-    const openBtn = form.querySelector('[data-hcn-open="filters"]');
+        // ── Elements ────────────────────────────────────────────────────
+        const openBtn  = form.querySelector('[data-hcn-open="filters"]');
+        const overlay  = form.querySelector("[data-hcn-filters-pop-overlay]");
+        const pop      = form.querySelector("[data-hcn-filters-pop]");
+        const closeBtn = form.querySelector("[data-hcn-filters-pop-close]");
+        const clearBtn = form.querySelector("[data-hcn-filters-clear]");
+        const applyBtn = form.querySelector("[data-hcn-filters-apply]");
+        const dot      = form.querySelector("[data-hcn-filters-dot]");
+        const bar      = form.querySelector("[data-hcn-bar]");
 
-	const overlay = form.querySelector("[data-hcn-filters-pop-overlay]");
-	const closeBtn = form.querySelector("[data-hcn-filters-pop-close]");
-    const clearBtn = form.querySelector("[data-hcn-filters-clear]");
-    const applyBtn = form.querySelector("[data-hcn-filters-apply]");
+        // Hidden inputs
+        const inMin      = form.querySelector('[name="min_price"]');
+        const inMax      = form.querySelector('[name="max_price"]');
+        const inBeds     = form.querySelector('[name="bedrooms"]');
+        const inBaths    = form.querySelector('[name="bathrooms"]');
+        const inFeatures = form.querySelector('[name="features"]');
+        const inPolicies = form.querySelector('[name="policies"]');
+        const inPets     = form.querySelector('[name="pets"]');
 
-    const accPrice = form.querySelector('[data-hcn-facc="price"]');
-    const accRooms = form.querySelector('[data-hcn-facc="rooms"]');
-    const accFeat  = form.querySelector('[data-hcn-facc="features"]');
-    const allAcc = [accPrice, accRooms, accFeat].filter(Boolean);
+        // Price slider
+        const minR      = form.querySelector("[data-hcn-price-min-range]");
+        const maxR      = form.querySelector("[data-hcn-price-max-range]");
+        const priceLabel = form.querySelector("[data-hcn-price-label]");
+        const rangeFill  = form.querySelector("[data-hcn-range-fill]");
 
-    // Hidden inputs (must exist in shortcode)
-    const inMin = form.querySelector('[name="min_price"]');
-    const inMax = form.querySelector('[name="max_price"]');
-    const inBeds = form.querySelector('[name="bedrooms"]');
-    const inBaths = form.querySelector('[name="bathrooms"]');
-    const inFeatures = form.querySelector('[name="features"]'); // comma-separated slugs
+        // Beds / baths steppers + "Any" spans
+        const bedOut  = form.querySelector("[data-hcn-bed-out]");
+        const bathOut = form.querySelector("[data-hcn-bath-out]");
+        const bedAny  = form.querySelector("[data-hcn-bed-any]");
+        const bathAny = form.querySelector("[data-hcn-bath-any]");
 
-    // Price UI
-    const minBox = form.querySelector("[data-hcn-price-min]");
-    const maxBox = form.querySelector("[data-hcn-price-max]");
-    const minR = form.querySelector("[data-hcn-price-min-range]");
-    const maxR = form.querySelector("[data-hcn-price-max-range]");
+        // Chips
+        const featChips = form.querySelector("[data-hcn-feature-chips]");
+        const polChips  = form.querySelector("[data-hcn-policy-chips]");
+        const polSection = form.querySelector("[data-hcn-policies-section]");
 
-    // Rooms UI
-    const bedOut = form.querySelector("[data-hcn-bed-out]");
-    const bathOut = form.querySelector("[data-hcn-bath-out]");
+        // ── URL sync ────────────────────────────────────────────────────
+        const emitSearch = () => window.dispatchEvent(new CustomEvent("hcn:search-updated"));
+        const syncUrl = () => {
+            if (!ajaxMode) return;
+            const fd = new FormData(form);
+            const p  = new URLSearchParams();
+            for (const [k, v] of fd.entries()) { const val = String(v ?? '').trim(); if (val) p.set(k, val); }
+            const url = new URL(window.location.href);
+            url.search = p.toString();
+            window.history.replaceState({}, '', url.toString());
+            emitSearch();
+        };
 
-    // Features UI
-    const chipsWrap = form.querySelector("[data-hcn-feature-chips]");
+        // ── Position popup below the Filters button ─────────────────────
+        const positionPop = () => {
+            if (!pop) return;
+            if (pop.parentElement !== document.body) document.body.appendChild(pop);
+            const barRect = bar ? bar.getBoundingClientRect() : {bottom:72};
+            const btnRect = openBtn ? openBtn.getBoundingClientRect() : barRect;
+            const scrollY = window.scrollY || window.pageYOffset;
+            const scrollX = window.scrollX || window.pageXOffset;
+            pop.style.position = 'absolute';
+            pop.style.top  = (barRect.bottom + scrollY + 8) + 'px';
+            // Align right edge with right edge of button, clamped to viewport
+            const right = document.documentElement.clientWidth - btnRect.right - scrollX;
+            pop.style.right = Math.max(8, right) + 'px';
+            pop.style.left  = 'auto';
+        };
 
-    const emitSearchUpdated = () => window.dispatchEvent(new CustomEvent("hcn:search-updated"));
+        const openPop = () => {
+            if (!overlay) return;
+            overlay.classList.add('is-open');
+            overlay.setAttribute('aria-hidden','false');
+            requestAnimationFrame(positionPop);
+        };
+        const closePop = () => {
+            if (!overlay) return;
+            overlay.classList.remove('is-open');
+            overlay.setAttribute('aria-hidden','true');
+        };
 
-    const buildParamsFromForm = () => {
-      const fd = new FormData(form);
-      const p = new URLSearchParams();
-      for (const [k, v] of fd.entries()) {
-        const val = String(v ?? "").trim();
-        if (val !== "") p.set(k, val);
-      }
-      return p;
-    };
+        openBtn?.addEventListener('click', e => { e.preventDefault(); openPop(); });
+        closeBtn?.addEventListener('click', e => { e.preventDefault(); closePop(); });
+        overlay?.addEventListener('click', e => { if (e.target === overlay) closePop(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
 
-    const syncUrlFromForm = () => {
-      if (!ajaxMode) return;
-      const p = buildParamsFromForm();
-      const url = new URL(window.location.href);
-      url.search = p.toString();
-      window.history.replaceState({}, "", url.toString());
-      emitSearchUpdated();
-    };
-
-    const openPopup = (section = "price") => {
-      if (!overlay) return;
-      overlay.classList.add("is-open");
-      overlay.setAttribute("aria-hidden", "false");
-      openAccordion(section);
-    };
-
-    const closePopup = () => {
-      if (!overlay) return;
-      overlay.classList.remove("is-open");
-      overlay.setAttribute("aria-hidden", "true");
-    };
-
-    const openAccordion = (key) => {
-      allAcc.forEach(a => a.classList.remove("is-open"));
-      const target =
-        key === "price" ? accPrice :
-        key === "rooms" ? accRooms :
-        key === "features" ? accFeat : null;
-      if (target) target.classList.add("is-open");
-    };
-
-    // header clicks
-    allAcc.forEach(acc => {
-      const head = acc.querySelector("[data-hcn-facc-head]");
-      head?.addEventListener("click", () => openAccordion(acc.getAttribute("data-hcn-facc")));
-    });
-
-    // Open/close events
-    openBtn?.addEventListener("click", (e) => { e.preventDefault(); openPopup("price"); });
-    closeBtn?.addEventListener("click", (e) => { e.preventDefault(); closePopup(); });
-    overlay?.addEventListener("click", (e) => { if (e.target === overlay) closePopup(); });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopup(); });
-
-    // ---------- init values from hidden inputs ----------
-    const num = (v) => {
-      const n = parseInt(String(v || "").trim(), 10);
-      return Number.isFinite(n) ? n : 0;
-    };
-
-    // Price ranges: keep sane clamp + non-crossing
-    const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-
-    const getRangeBounds = () => {
-      // Use cfg.priceBounds if present, else fallback 0–1000
-      const min = num(cfg.priceMin) || 0;
-      const max = num(cfg.priceMax) || 1000;
-      return { min, max };
-    };
-
-    const setPriceUI = (minVal, maxVal) => {
-      const b = getRangeBounds();
-      let a = clamp(minVal, b.min, b.max);
-      let c = clamp(maxVal, b.min, b.max);
-      if (a > c) [a, c] = [c, a];
-
-      if (minBox) minBox.value = a ? String(a) : "";
-      if (maxBox) maxBox.value = c ? String(c) : "";
-      if (minR) minR.value = String(a);
-      if (maxR) maxR.value = String(c);
-
-      // hidden inputs
-      if (inMin) inMin.value = a ? String(a) : "";
-      if (inMax) inMax.value = c ? String(c) : "";
-
-      // accordion value
-      const v = accPrice?.querySelector("[data-hcn-facc-value]");
-      if (v) v.textContent = (a || c) ? `£${a || 0} – £${c || b.max}` : "Any";
-    };
-
-    const setRoomsUI = (beds, baths) => {
-      const b = Math.max(0, beds);
-      const ba = Math.max(0, baths);
-
-      if (bedOut) bedOut.textContent = String(b);
-      if (bathOut) bathOut.textContent = String(ba);
-
-      if (inBeds) inBeds.value = b ? String(b) : "";
-      if (inBaths) inBaths.value = ba ? String(ba) : "";
-
-      const v = accRooms?.querySelector("[data-hcn-facc-value]");
-      if (v) v.textContent = (b || ba) ? `${b || 0}+ beds · ${ba || 0}+ baths` : "Any";
-    };
-
-    const selectedFeatures = new Set(
-      String(inFeatures?.value || "").split(",").map(s => s.trim()).filter(Boolean)
-    );
-
-    const renderChips = () => {
-      if (!chipsWrap) return;
-      const feats = Array.isArray(cfg.featuredFeatures) ? cfg.featuredFeatures : [];
-
-      if (!feats.length) {
-        chipsWrap.innerHTML = `<div class="hcn-muted" style="font-size:12px; opacity:.7;">No featured features set in Settings yet.</div>`;
-        return;
-      }
-
-      chipsWrap.innerHTML = feats.map(f => {
-        const on = selectedFeatures.has(String(f.slug));
-        return `<button type="button" class="hcn-chip ${on ? "is-on" : ""}" data-slug="${String(f.slug)}">${String(f.name)}</button>`;
-      }).join("");
-
-      chipsWrap.querySelectorAll(".hcn-chip").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const slug = btn.getAttribute("data-slug");
-          if (!slug) return;
-          if (selectedFeatures.has(slug)) selectedFeatures.delete(slug);
-          else selectedFeatures.add(slug);
-
-          // write hidden
-          if (inFeatures) inFeatures.value = Array.from(selectedFeatures).join(",");
-
-          // update accordion value
-          const v = accFeat?.querySelector("[data-hcn-facc-value]");
-          if (v) v.textContent = selectedFeatures.size ? `${selectedFeatures.size} selected` : "Any";
-
-          renderChips();
+        // ── Price slider ────────────────────────────────────────────────
+        const getRangeBounds = () => ({
+            min: parseInt(String(cfg.priceMin || 0), 10) || 0,
+            max: parseInt(String(cfg.priceMax || 14500), 10) || 14500,
         });
-      });
+
+        const fmt = n => '£' + n.toLocaleString('en-GB');
+
+        const updateRangeFill = () => {
+            const b    = getRangeBounds();
+            const minV = parseInt(minR?.value || b.min, 10);
+            const maxV = parseInt(maxR?.value || b.max, 10);
+            const pMin = ((minV - b.min) / (b.max - b.min)) * 100;
+            const pMax = ((maxV - b.min) / (b.max - b.min)) * 100;
+            if (rangeFill) { rangeFill.style.left = pMin + '%'; rangeFill.style.width = (pMax - pMin) + '%'; }
+        };
+
+        const setPriceUI = (minV, maxV) => {
+            const b = getRangeBounds();
+            let a = Math.max(b.min, Math.min(b.max, minV));
+            let c = Math.max(b.min, Math.min(b.max, maxV));
+            if (a > c) [a, c] = [c, a];
+            if (minR) minR.value = String(a);
+            if (maxR) maxR.value = String(c);
+            if (inMin) inMin.value = a > b.min ? String(a) : '';
+            if (inMax) inMax.value = c < b.max ? String(c) : '';
+            if (priceLabel) priceLabel.textContent = fmt(a) + ' to ' + fmt(c);
+            updateRangeFill();
+            updateDot();
+        };
+
+        minR?.addEventListener('input', () => {
+            let minV = parseInt(minR.value, 10), maxV = parseInt(maxR?.value || 0, 10);
+            if (minV > maxV) minR.value = String(maxV);
+            setPriceUI(parseInt(minR.value, 10), maxV);
+        });
+        maxR?.addEventListener('input', () => {
+            let minV = parseInt(minR?.value || 0, 10), maxV = parseInt(maxR.value, 10);
+            if (maxV < minV) maxR.value = String(minV);
+            setPriceUI(minV, parseInt(maxR.value, 10));
+        });
+
+        // ── Beds / baths steppers ───────────────────────────────────────
+        const updateRoomUI = () => {
+            const beds  = parseInt(bedOut?.textContent  || '0', 10) || 0;
+            const baths = parseInt(bathOut?.textContent || '0', 10) || 0;
+            if (inBeds)  inBeds.value  = beds  > 0 ? String(beds)  : '';
+            if (inBaths) inBaths.value = baths > 0 ? String(baths) : '';
+            // Show "Any" label when 0
+            if (bedAny)  bedAny.style.display  = beds  === 0 ? '' : 'none';
+            if (bathAny) bathAny.style.display = baths === 0 ? '' : 'none';
+            if (bedOut)  bedOut.style.display   = beds  > 0  ? '' : 'none';
+            if (bathOut) bathOut.style.display  = baths > 0  ? '' : 'none';
+            updateDot();
+        };
+
+        const bindRoomStepper = (roomKey, outEl) => {
+            const wrap  = form.querySelector('[data-hcn-filter-section]');
+            const minus = form.querySelector('[data-hcn-step="-"][data-hcn-room="' + roomKey + '"]');
+            const plus  = form.querySelector('[data-hcn-step="+"][data-hcn-room="' + roomKey + '"]');
+            const get   = () => parseInt(outEl?.textContent || '0', 10) || 0;
+            const set   = n  => { if (outEl) outEl.textContent = String(Math.max(0, n)); };
+            minus?.addEventListener('click', e => { e.preventDefault(); set(get()-1); updateRoomUI(); });
+            plus?.addEventListener('click',  e => { e.preventDefault(); set(get()+1); updateRoomUI(); });
+        };
+
+        bindRoomStepper('bedrooms',  bedOut);
+        bindRoomStepper('bathrooms', bathOut);
+
+        // ── Features chips ──────────────────────────────────────────────
+        const selectedFeatures = new Set(
+            String(inFeatures?.value || '').split(',').map(s => s.trim()).filter(Boolean)
+        );
+
+        const renderFeatChips = () => {
+            if (!featChips) return;
+            const feats = Array.isArray(cfg.featuredFeatures) ? cfg.featuredFeatures : [];
+            if (!feats.length) { featChips.innerHTML = '<span class="hcn-muted-sm">No features configured yet.</span>'; return; }
+            featChips.innerHTML = feats.map(f => {
+                const on = selectedFeatures.has(String(f.slug));
+                return '<button type="button" class="hcn-chip ' + (on ? 'is-on' : '') + '" data-slug="' + f.slug + '">' + f.name + '</button>';
+            }).join('');
+            featChips.querySelectorAll('.hcn-chip').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const slug = btn.getAttribute('data-slug');
+                    if (!slug) return;
+                    if (selectedFeatures.has(slug)) selectedFeatures.delete(slug); else selectedFeatures.add(slug);
+                    if (inFeatures) inFeatures.value = Array.from(selectedFeatures).join(',');
+                    renderFeatChips();
+                    updateDot();
+                });
+            });
+        };
+
+        // ── Policies chips ──────────────────────────────────────────────
+        const selectedPolicies = new Set(
+            String(inPolicies?.value || '').split(',').map(s => s.trim()).filter(Boolean)
+        );
+
+        const renderPolChips = () => {
+            const pols = Array.isArray(cfg.featuredPolicies) ? cfg.featuredPolicies : [];
+            if (!polSection) return;
+            if (!pols.length) { polSection.style.display = 'none'; return; }
+            polSection.style.display = '';
+            if (!polChips) return;
+            polChips.innerHTML = pols.map(p => {
+                const on = selectedPolicies.has(String(p.slug));
+                return '<button type="button" class="hcn-chip ' + (on ? 'is-on' : '') + '" data-slug="' + p.slug + '">' + p.name + '</button>';
+            }).join('');
+            polChips.querySelectorAll('.hcn-chip').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const slug = btn.getAttribute('data-slug');
+                    if (!slug) return;
+                    if (selectedPolicies.has(slug)) selectedPolicies.delete(slug); else selectedPolicies.add(slug);
+                    if (inPolicies) inPolicies.value = Array.from(selectedPolicies).join(',');
+                    renderPolChips();
+                    updateDot();
+                });
+            });
+        };
+
+        // ── Dot indicator ───────────────────────────────────────────────
+        const updateDot = () => {
+            const b = getRangeBounds();
+            const hasPrice  = inMin?.value || inMax?.value;
+            const hasBeds   = inBeds?.value;
+            const hasBaths  = inBaths?.value;
+            const hasFeats  = inFeatures?.value;
+            const hasPols   = inPolicies?.value;
+            const active    = !!(hasPrice || hasBeds || hasBaths || hasFeats || hasPols);
+            if (dot) dot.style.display = active ? '' : 'none';
+        };
+
+        // ── Clear / Apply ───────────────────────────────────────────────
+        clearBtn?.addEventListener('click', e => {
+            e.preventDefault();
+            if (inMin)      inMin.value      = '';
+            if (inMax)      inMax.value      = '';
+            if (inBeds)     inBeds.value     = '';
+            if (inBaths)    inBaths.value    = '';
+            if (inFeatures) inFeatures.value = '';
+            if (inPolicies) inPolicies.value = '';
+            if (bedOut)     bedOut.textContent  = '0';
+            if (bathOut)    bathOut.textContent = '0';
+            selectedFeatures.clear();
+            selectedPolicies.clear();
+            const b = getRangeBounds();
+            setPriceUI(b.min, b.max);
+            updateRoomUI();
+            renderFeatChips();
+            renderPolChips();
+            syncUrl();
+        });
+
+        applyBtn?.addEventListener('click', e => {
+            e.preventDefault();
+            closePop();
+            syncUrl();
+        });
+
+        // ── Dynamic price bounds from map ───────────────────────────────
+        window.addEventListener("hcn:price-bounds", e => {
+            const b = e?.detail || {};
+            const minB = parseInt(b.min || 0, 10) || 0;
+            const maxB = parseInt(b.max || 0, 10) || 0;
+            if (!maxB) return;
+            cfg.priceMin = minB; cfg.priceMax = maxB;
+            if (minR) { minR.min = String(minB); minR.max = String(maxB); }
+            if (maxR) { maxR.min = String(minB); maxR.max = String(maxB); }
+            const curMin = inMin?.value ? parseInt(inMin.value, 10) : minB;
+            const curMax = inMax?.value ? parseInt(inMax.value, 10) : maxB;
+            setPriceUI(curMin, curMax);
+        });
+        if (window.HCN_PRICE_BOUNDS) {
+            window.dispatchEvent(new CustomEvent("hcn:price-bounds", {detail: window.HCN_PRICE_BOUNDS}));
+        }
+
+        // ── Init ────────────────────────────────────────────────────────
+        const b = getRangeBounds();
+        setPriceUI(parseInt(inMin?.value || b.min, 10), parseInt(inMax?.value || b.max, 10));
+        updateRoomUI();
+        renderFeatChips();
+        renderPolChips();
+        updateDot();
     };
 
-    // steppers
-    const bindStepper = (wrap, outEl, onChange) => {
-      if (!wrap) return;
-      const minus = wrap.querySelector('[data-hcn-step="-"]');
-      const plus = wrap.querySelector('[data-hcn-step="+"]');
-
-      const get = () => parseInt(outEl?.textContent || "0", 10) || 0;
-      const set = (n) => { if (outEl) outEl.textContent = String(Math.max(0, n)); };
-
-      minus?.addEventListener("click", (e) => { e.preventDefault(); set(get() - 1); onChange(); });
-      plus?.addEventListener("click", (e) => { e.preventDefault(); set(get() + 1); onChange(); });
-    };
-
-    // price bind
-    const onPriceChange = () => setPriceUI(num(minBox?.value), num(maxBox?.value));
-
-    minBox?.addEventListener("input", onPriceChange);
-    maxBox?.addEventListener("input", onPriceChange);
-
-    minR?.addEventListener("input", () => setPriceUI(num(minR.value), num(maxR?.value)));
-    maxR?.addEventListener("input", () => setPriceUI(num(minR?.value), num(maxR.value)));
-
-    // rooms bind
-    const roomsWrap = form.querySelector("[data-hcn-rooms-wrap]");
-    const bedsWrap = roomsWrap?.querySelector('[data-hcn-room="bedrooms"]');
-    const bathsWrap = roomsWrap?.querySelector('[data-hcn-room="bathrooms"]');
-    bindStepper(bedsWrap, bedOut, () => setRoomsUI(num(bedOut?.textContent), num(bathOut?.textContent)));
-    bindStepper(bathsWrap, bathOut, () => setRoomsUI(num(bedOut?.textContent), num(bathOut?.textContent)));
-
-    // Init UI from query
-    setPriceUI(num(inMin?.value), num(inMax?.value));
-    setRoomsUI(num(inBeds?.value), num(inBaths?.value));
-
-    // Init features value label
-    const fv = accFeat?.querySelector("[data-hcn-facc-value]");
-    if (fv) fv.textContent = selectedFeatures.size ? `${selectedFeatures.size} selected` : "Any";
-    renderChips();
-
-    // Clear / Apply
-    clearBtn?.addEventListener("click", (e) => {
-		if (inMin) inMin.value = "";
-		if (inMax) inMax.value = "";
-		if (inBeds) inBeds.value = "";
-		if (inBaths) inBaths.value = "";
-		if (inFeatures) inFeatures.value = "";
-
-		// also clear the visible fields
-		if (minBox) minBox.value = "";
-		if (maxBox) maxBox.value = "";
-
-		const b = getRangeBounds();
-		if (minR) minR.value = String(b.min);
-		if (maxR) maxR.value = String(b.max);
-
-		selectedFeatures.clear();
-
-		// reset labels
-		setPriceUI(0, b.max);
-		setRoomsUI(0, 0);
-		renderChips();
-
-		// IMPORTANT: write URL + trigger update
-		syncUrlFromForm();
-    });
-
-    applyBtn?.addEventListener("click", (e) => {
-      e.preventDefault();
-      closePopup();
-      syncUrlFromForm();
-    });
-	
-	// NEW: receive dynamic bounds (min/max nightly) from map fetch
-	window.addEventListener("hcn:price-bounds", (e) => {
-	  const b = (e && e.detail) ? e.detail : {};
-	  const minB = parseInt(b.min || 0, 10) || 0;
-	  const maxB = parseInt(b.max || 0, 10) || 0;
-
-	  if (!maxB || maxB <= 0) return;
-
-	  // Update bounds used by getRangeBounds()
-	  cfg.priceMin = minB;
-	  cfg.priceMax = maxB;
-
-	  // Update range inputs
-	  if (minR) { minR.min = String(minB); minR.max = String(maxB); }
-	  if (maxR) { maxR.min = String(minB); maxR.max = String(maxB); }
-
-	  // Clamp current values (or snap if empty)
-	  const curMin = inMin && inMin.value ? parseInt(inMin.value, 10) : 0;
-	  const curMax = inMax && inMax.value ? parseInt(inMax.value, 10) : 0;
-
-	  const nextMin = curMin > 0 ? curMin : minB;
-	  const nextMax = curMax > 0 ? curMax : maxB;
-
-	  setPriceUI(nextMin, nextMax);
-	});
-	
-	// ✅ Apply any bounds already fetched before this script initialised
-	if (window.HCN_PRICE_BOUNDS) {
-	  window.dispatchEvent(new CustomEvent("hcn:price-bounds", { detail: window.HCN_PRICE_BOUNDS }));
-	}
-	
-  };
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
-})();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})(); 
