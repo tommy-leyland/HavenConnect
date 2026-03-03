@@ -125,11 +125,11 @@ class HavenConnect_Photo_Sync {
         $first = reset($sorted);
         if (!$first) return '';
 
-        $candidates = [
-            $first['mediumThumbnailScaleImageUrl'] ?? null,
-            $first['largeThumbnailScaleImageUrl']  ?? null,
-            $first['mediumScaleImageUrl']          ?? null,
-        ];
+		$candidates = [
+			$first['mediumScaleImageUrl']          ?? null,
+			$first['largeThumbnailScaleImageUrl']  ?? null,
+			$first['mediumThumbnailScaleImageUrl'] ?? null,
+		];
 
         foreach ($candidates as $u) {
             if ($u && $this->is_usable_image_url(trim($u))) {
