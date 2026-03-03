@@ -113,37 +113,4 @@ body { position: relative; }
 /* Sheet footer */
 .hcn-sheet__actions { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 12px; }
 .hcn-sheet__clear { background: none; border: 0; text-decoration: underline; cursor: pointer; font-size: 13px; font-family: inherit; }
-.hcn-sheet__apply { background: #b69068; color: #fff; border: 0; border-radius: 12px; padding: 12px 20px; font-weight: 700; font-family: inherit; cursor: pointer; font-size: 14px; }
-
-/* Remove any pointer-events:none from [data-hcn-sheet-overlay] */
-[data-hcn-sheet-overlay] {
-    display: none;  /* hidden until is-open */
-    position: fixed;
-    inset: 0;
-    z-index: 9998;
-    pointer-events: none; /* backdrop transparent to clicks — sheet inside handles its own */
-}
-[data-hcn-sheet-overlay].is-open {
-    display: block;
-}
-/* Sheet itself must intercept clicks (so click-outside logic works) */
-[data-hcn-sheet] {
-    pointer-events: all;
-    z-index: 99999;
-}
-
-/* Same for filters popup overlay */
-[data-hcn-filters-pop-overlay] {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 9998;
-    pointer-events: none;
-}
-[data-hcn-filters-pop-overlay].is-open {
-    display: block;
-}
-[data-hcn-filters-pop] {
-    pointer-events: all;
-    z-index: 99999;
-}
+.hcn-sheet__apply { background: #b69068; color: #fff; border: 0; border-radius: 12px; padding: 12px 20px; font-weight: 700; font-family: inherit; cursor: pointer; font-size: 14px; }

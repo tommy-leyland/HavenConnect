@@ -99,9 +99,13 @@ const init = () => {
     // ── Position: fixed coords, sheet stays inside form ───────────────
 	const positionSheet = trigEl => {
 		if (!sheet) return;
+		// Move overlay to body so absolute coords are always document-relative
+		if (overlay && overlay.parentElement !== document.body) {
+			document.body.appendChild(overlay);
+		}
 		const scrollY = window.scrollY || window.pageYOffset;
 		const scrollX = window.scrollX || window.pageXOffset;
-		const barR  = bar?.getBoundingClientRect()    ?? { bottom: 72, left: 0 };
+		const barR  = bar?.getBoundingClientRect() ?? { bottom: 72, left: 0 };
 		const trigR = trigEl?.getBoundingClientRect() ?? barR;
 		const top   = barR.bottom + scrollY + 8;
 		const w     = sheet.offsetWidth || 400;

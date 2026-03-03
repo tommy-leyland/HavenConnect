@@ -53,6 +53,10 @@ const init = () => {
     // Position popup below Filters button with fixed coords
 	const positionPop = () => {
 		if (!pop || !openBtn) return;
+		// Move overlay to body so absolute coords are always document-relative
+		if (overlay && overlay.parentElement !== document.body) {
+			document.body.appendChild(overlay);
+		}
 		const scrollY = window.scrollY || window.pageYOffset;
 		const scrollX = window.scrollX || window.pageXOffset;
 		const barR = bar?.getBoundingClientRect() ?? { bottom: 72 };
