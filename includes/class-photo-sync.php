@@ -75,13 +75,13 @@ class HavenConnect_Photo_Sync {
                 continue;
             }
 
-			$candidates = [
-				$first['mediumScaleImageUrl']          ?? null,  // ~800-1200px — ideal
-				$first['largeThumbnailScaleImageUrl']  ?? null,  // ~600px — acceptable fallback
-				$first['largeScaleImageUrl']           ?? null,  // full res — last resort
-				$first['originalImageUrl']             ?? null,
-				$first['mediumThumbnailScaleImageUrl'] ?? null,
-			];
+            $candidates = [
+                $photo['largeScaleImageUrl']           ?? null,
+                $photo['originalImageUrl']             ?? null,
+                $photo['mediumScaleImageUrl']          ?? null,
+                $photo['largeThumbnailScaleImageUrl']  ?? null,
+                $photo['mediumThumbnailScaleImageUrl'] ?? null,
+            ];
 
             $chosen = null;
             foreach ($candidates as $u) {
@@ -125,13 +125,11 @@ class HavenConnect_Photo_Sync {
         $first = reset($sorted);
         if (!$first) return '';
 
-		$candidates = [
-			$first['mediumScaleImageUrl']          ?? null,  // ~800-1200px — ideal
-			$first['largeThumbnailScaleImageUrl']  ?? null,  // ~600px — acceptable fallback
-			$first['largeScaleImageUrl']           ?? null,  // full res — last resort
-			$first['originalImageUrl']             ?? null,
-			$first['mediumThumbnailScaleImageUrl'] ?? null,
-		];
+        $candidates = [
+            $first['mediumThumbnailScaleImageUrl'] ?? null,
+            $first['largeThumbnailScaleImageUrl']  ?? null,
+            $first['mediumScaleImageUrl']          ?? null,
+        ];
 
         foreach ($candidates as $u) {
             if ($u && $this->is_usable_image_url(trim($u))) {

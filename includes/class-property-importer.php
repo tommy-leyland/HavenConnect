@@ -311,6 +311,7 @@ class HavenConnect_Property_Importer {
    * Upsert the CPT post by _havenconnect_uid
    */
   private function upsert_post(string $uid, array $data): int {
+	  
     $title = sanitize_text_field($data['name'] ?? ($data['Name'] ?? 'Untitled'));
 
     $existing = get_posts([
