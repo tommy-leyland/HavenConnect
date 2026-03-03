@@ -28,11 +28,11 @@ class HavenConnect_Search_Bar_Shortcode {
 
     $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
-    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.2.6');
-    wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '1.0.6');
-    wp_enqueue_script('hcn-search-sheet', $base . 'assets/hcn-search-sheet.js', [], '1.0.6', true);
-	wp_enqueue_style('hcn-filters', $base . 'assets/hcn-filters.css', [], '1.0.6');
-	wp_enqueue_script('hcn-filters', $base . 'assets/hcn-filters.js', [], '1.0.6', true);
+    wp_enqueue_style('hcn-search-bar', $base . 'assets/hcn-search-bar.css', [], '1.2.7');
+    wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '1.2.7');
+    wp_enqueue_script('hcn-search-sheet', $base . 'assets/hcn-search-sheet.js', [], '1.2.7', true);
+	wp_enqueue_style('hcn-filters', $base . 'assets/hcn-filters.css', [], '1.2.7');
+	wp_enqueue_script('hcn-filters', $base . 'assets/hcn-filters.js', [], '1.2.7', true);
 	
 	$settings = get_option('hcn_settings', []);
 	$popular_ids = isset($settings['popular_locations']) && is_array($settings['popular_locations'])

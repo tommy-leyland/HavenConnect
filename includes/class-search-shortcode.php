@@ -226,11 +226,20 @@ class HavenConnect_Search_Shortcode {
       ?>
       <div class="hcn-tile">
         <a class="hcn-tile__media" href="<?php echo esc_url($url); ?>">
-          <?php if ($featured): ?>
-            <img src="<?php echo esc_url($featured); ?>" alt="<?php echo esc_attr($title); ?>" loading="lazy">
-          <?php else: ?>
-            <div class="hcn-tile__ph"></div>
-          <?php endif; ?>
+			<?php if ($featured): ?>
+				<?php
+				// Fallback: if thumb URL fails to load, swap to the full-res featured URL.
+				// This covers properties imported before the photo-sync fix where
+				// _hcn_featured_thumb_url might be a broken or too-small URL.
+				$featured_full = (string) get_post_meta($pid, '_hcn_featured_image_url', true);
+				$onerror = ($featured_full && $featured_full !== $featured)
+					? ' onerror="this.onerror=null;this.src=\'' . esc_js($featured_full) . '\'"'
+					: '';
+				?>
+				<img src="<?php echo esc_url($featured); ?>" alt="<?php echo esc_attr($title); ?>" loading="lazy"<?php echo $onerror; ?>>
+			<?php else: ?>
+				<div class="hcn-tile__ph"></div>
+			<?php endif; ?>
 
           <?php if (!empty($badge)): ?>
             <div class="hcn-tile__badge"><?php echo esc_html($badge); ?></div>
@@ -303,20 +312,24 @@ class HavenConnect_Search_Shortcode {
     return ob_get_clean();
   }
 
-  private function get_card_image_url(int $post_id): string {
-    $thumb = (string) get_post_meta($post_id, '_hcn_featured_thumb_url', true);
-    if ($thumb) return $thumb;
+	private function get_card_image_url(int $post_id): string {
+		$thumb = (string) get_post_meta($post_id, '_hcn_featured_thumb_url', true);
+		if ($thumb) return $thumb;
 
-    $featured = (string) get_post_meta($post_id, '_hcn_featured_image_url', true);
-    if ($featured) return $featured;
+		$featured = (string) get_post_meta($post_id, '_hcn_featured_image_url', true);
+		if ($featured) return $featured;
 
-    $thumb_id = get_post_thumbnail_id($post_id);
-    if ($thumb_id) {
-      return (string) (wp_get_attachment_image_url($thumb_id, 'medium') ?: '');
-    }
+		$thumb_id = get_post_thumbnail_id($post_id);
+		if ($thumb_id) {
+			return (string) (wp_get_attachment_image_url($thumb_id, 'medium') ?: '');
+		}
 
-    return '';
-  }
+		// Last resort: grab first discrete gallery URL written during import
+		$gallery_first = (string) get_post_meta($post_id, 'hcn_gallery_url_001', true);
+		if ($gallery_first) return $gallery_first;
+
+		return '';
+	}
 
   private function get_from_price(int $post_id, string $checkin = '', string $checkout = ''): ?float {
     $table  = $this->db->prefix . 'hcn_availability';
