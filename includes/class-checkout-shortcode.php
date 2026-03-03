@@ -40,8 +40,8 @@ class HavenConnect_Checkout_Shortcode {
 
         $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__)) . '/';
 
-        wp_enqueue_script('hcn-checkout', $base . 'assets/hcn-checkout.js', [], '1.3.1', true);
-        wp_enqueue_style('hcn-checkout',  $base . 'assets/hcn-checkout.css', [], '1.3.1');
+        wp_enqueue_script('hcn-checkout', $base . 'assets/hcn-checkout.js', [], '1.4.1', true);
+        wp_enqueue_style('hcn-checkout',  $base . 'assets/hcn-checkout.css', [], '1.4.1');
 
         if ($stripe_pub) {
             wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
@@ -257,6 +257,11 @@ class HavenConnect_Checkout_Shortcode {
         $checkin    = sanitize_text_field($_POST['checkin']       ?? '');
         $checkout   = sanitize_text_field($_POST['checkout']      ?? '');
         $guests     = max(1, (int)($_POST['guests']               ?? 1));
+        // Guest breakdown (infants do NOT count towards total guest cap)
+        $adults     = max(1, (int)($_POST['adults']               ?? $guests));
+        $children   = max(0, (int)($_POST['children']             ?? 0));
+        $infants    = max(0, (int)($_POST['infants']              ?? 0));
+        $pets       = max(0, (int)($_POST['pets']                 ?? 0));
         $total      = (float)($_POST['total']                     ?? 0);
         $currency   = strtoupper(sanitize_text_field($_POST['currency'] ?? 'GBP'));
         $promo_code = strtoupper(sanitize_text_field($_POST['promo_code'] ?? ''));
@@ -274,6 +279,12 @@ class HavenConnect_Checkout_Shortcode {
         }
         if (!$agreed) {
             wp_send_json_error(['message' => 'You must accept the rental agreement.'], 400);
+        }
+
+        // Validate guest totals: adults + children must not exceed the selected guest count.
+        // Infants do not count towards the total.
+        if (($adults + $children) > $guests) {
+            wp_send_json_error(['message' => 'Adults + children cannot exceed the total number of guests.'], 400);
         }
 
         if ($mode['payment_required'] && !$intent_id) {
@@ -318,6 +329,20 @@ class HavenConnect_Checkout_Shortcode {
             'guestEmail'      => $email,
             'guestPhone'      => $phone,
 
+            // Required by Hostfully for leads (including INQUIRY): guestInformation
+            'guestInformation' => [
+                'firstName'     => $first,
+                'lastName'      => $last,
+                'email'         => $email,
+                'phoneNumber'   => $phone,
+                'adultCount'    => $adults,
+                'childrenCount' => $children,
+                'infantCount'   => $infants,
+                'petCount'      => $pets,
+                // Default to GB unless you later add a UI field
+                'countryCode'   => 'GB',
+            ],
+
             'source'          => 'HOSTFULLY_DBS',
 
             // Booking mode mapping (instant|request|inquiry)
@@ -339,8 +364,11 @@ class HavenConnect_Checkout_Shortcode {
         $lead_uid = $lead['uid'] ?? $lead['lead']['uid'] ?? null;
 
         if (!$lead_uid) {
+            $msg = $mode['payment_required']
+                ? ('Booking could not be confirmed in our system. Please contact us quoting payment reference: ' . $intent_id)
+                : 'Enquiry could not be submitted in our system. Please contact us with your dates.';
             wp_send_json_error([
-                'message' => 'Booking could not be confirmed in our system. Please contact us quoting payment reference: ' . $intent_id,
+                'message' => $msg,
                 'debug'   => $lead,
             ], 500);
         }
@@ -350,7 +378,7 @@ class HavenConnect_Checkout_Shortcode {
 
         wp_send_json_success([
             'lead_uid'  => $lead_uid,
-            'message'   => 'Booking confirmed!',
+            'message'   => ($mode['payment_required'] ? 'Booking confirmed!' : 'Enquiry sent!'),
         ]);
     }
 
@@ -407,13 +435,13 @@ class HavenConnect_Checkout_Shortcode {
 
         // Map to Hostfully lead type + status
         // instant  => BOOKING + BOOKED
-        // request  => BOOKING_REQUEST + PENDING_APPROVED
+        // request  => BOOKING_REQUEST + PENDING
         // inquiry  => INQUIRY + PENDING
         $map = [
             'instant' => ['lead_type' => 'BOOKING',         'lead_status' => 'BOOKED',           'payment_required' => true],
-            'request' => ['lead_type' => 'BOOKING_REQUEST', 'lead_status' => 'PENDING_APPROVED', 'payment_required' => true],
+            'request' => ['lead_type' => 'BOOKING_REQUEST', 'lead_status' => 'ON_HOLD',          'payment_required' => true],
             'inquiry' => ['lead_type' => 'INQUIRY',         'lead_status' => 'PENDING',          'payment_required' => false],
-        ];
+        ]; 
 
         $m = $map[$booking_type];
         return [
@@ -460,4 +488,4 @@ class HavenConnect_Checkout_Shortcode {
         set_transient($cache_key, $optional, HOUR_IN_SECONDS * 6);
         return $optional;
     }
-}
+}  

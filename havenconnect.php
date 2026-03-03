@@ -44,6 +44,7 @@ hcn_require('class-search-bar-shortcode.php');
 hcn_require('class-map-shortcode.php');
 hcn_require('class-loggia-availability-importer.php');
 hcn_require('class-property-calendar.php');
+hcn_require('class-property-gallery.php');
 hcn_require('class-checkout-shortcode.php');
 // hcn_require('class-availability-cron.php'); // optional — cron to clear stale availability
 // hcn_require('class-import-cron.php');        // optional — cron imports

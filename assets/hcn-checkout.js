@@ -241,6 +241,31 @@
         </div>
       </div>
 
+      <!-- Guest breakdown (Infants do not count towards guest total) -->
+      <div class="hcn-co-breakdown" id="hcn-guest-breakdown">
+        <div class="hcn-co-breakdown__title">Guest breakdown</div>
+        <div class="hcn-co-breakdown__row">
+          <span>Adults</span>
+          <span><input type="number" id="hcn-adults" min="1" step="1" value="${Math.max(1, parseInt(state.booking.guests, 10) || 1)}" class="hcn-co-mini-input"></span>
+        </div>
+        <div class="hcn-co-breakdown__row">
+          <span>Children</span>
+          <span><input type="number" id="hcn-children" min="0" step="1" value="0" class="hcn-co-mini-input"></span>
+        </div>
+        <div class="hcn-co-breakdown__row">
+          <span>Infants</span>
+          <span><input type="number" id="hcn-infants" min="0" step="1" value="0" class="hcn-co-mini-input"></span>
+        </div>
+        <div class="hcn-co-breakdown__row">
+          <span>Pets</span>
+          <span><input type="number" id="hcn-pets" min="0" step="1" value="0" class="hcn-co-mini-input"></span>
+        </div>
+        <div class="hcn-co-breakdown__row hcn-co-breakdown__row--promo">
+          <span>Total (adults + children)</span>
+          <span><strong id="hcn-guest-total">${Math.max(1, parseInt(state.booking.guests, 10) || 1)}</strong> / ${state.booking.guests}</span>
+        </div>
+      </div>
+
       <!-- Price breakdown -->
       <div class="hcn-co-breakdown">
         <div class="hcn-co-breakdown__title">Price breakdown</div>
@@ -315,6 +340,46 @@
 
       // Book
       bookBtn?.addEventListener('click', handleBook);
+
+      // Guest breakdown enforcement
+      const totalGuests = parseInt(state.booking.guests, 10) || 1;
+      const elAdults = wrap.querySelector('#hcn-adults');
+      const elChildren = wrap.querySelector('#hcn-children');
+      const elInfants = wrap.querySelector('#hcn-infants');
+      const elPets = wrap.querySelector('#hcn-pets');
+      const elTotal = wrap.querySelector('#hcn-guest-total');
+
+      function toInt(v, fallback) {
+        const n = parseInt(String(v ?? ''), 10);
+        return Number.isFinite(n) ? n : fallback;
+      }
+
+      function enforceGuests() {
+        let adults = Math.max(1, toInt(elAdults?.value, totalGuests));
+        let children = Math.max(0, toInt(elChildren?.value, 0));
+        // infants do NOT count towards guest total
+        let infants = Math.max(0, toInt(elInfants?.value, 0));
+        let pets = Math.max(0, toInt(elPets?.value, 0));
+
+        if ((adults + children) > totalGuests) {
+          adults = Math.max(1, totalGuests - children);
+          if ((adults + children) > totalGuests) {
+            children = Math.max(0, totalGuests - adults);
+          }
+        }
+
+        if (elAdults) elAdults.value = String(adults);
+        if (elChildren) elChildren.value = String(children);
+        if (elInfants) elInfants.value = String(infants);
+        if (elPets) elPets.value = String(pets);
+        if (elTotal) elTotal.textContent = String(adults + children);
+      }
+
+      [elAdults, elChildren, elInfants, elPets].forEach(el => {
+        el?.addEventListener('input', enforceGuests);
+        el?.addEventListener('change', enforceGuests);
+      });
+      enforceGuests();
     }
 
     function updateTotals() {
@@ -519,6 +584,11 @@
         fd.append('checkin',          checkin);
         fd.append('checkout',         checkout);
         fd.append('guests',           guests);
+        // Guest breakdown (infants do not count toward total guest cap)
+        fd.append('adults',           String(parseInt(wrap.querySelector('#hcn-adults')?.value || '', 10) || guests));
+        fd.append('children',         String(parseInt(wrap.querySelector('#hcn-children')?.value || '', 10) || 0));
+        fd.append('infants',          String(parseInt(wrap.querySelector('#hcn-infants')?.value || '', 10) || 0));
+        fd.append('pets',             String(parseInt(wrap.querySelector('#hcn-pets')?.value || '', 10) || 0));
         fd.append('total',            String(totalWithFees()));
         fd.append('currency',         state.quote.currency || 'GBP');
         fd.append('promo_code',       state.promo_code);

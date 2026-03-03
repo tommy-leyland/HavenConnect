@@ -146,7 +146,7 @@ class HavenConnect_Property_Importer {
     // 4) Meta
     $this->update_meta($post_id, $data);
 
-    // 4b) DBS settings (booking type etc)
+    // 4b) DBS settings (enabled/url only)
     $this->sync_property_dbs_settings($apiKey, $uid, $post_id);
 
     // 5) Amenities -> Features taxonomy
@@ -463,6 +463,24 @@ class HavenConnect_Property_Importer {
         delete_post_meta($post_id, $key);
       }
     }
+
+
+    // Booking strategy (Hostfully DBS channel) -> booking type meta for checkout.
+    // Source: property.availability.hostfullyBookingStrategy (e.g. INSTANT_BOOKING / BOOKING_REQUEST / BOOKING_INQUIRY)
+    $strategy = $avail['hostfullyBookingStrategy'] ?? null;
+    $booking_type = null;
+    if (is_string($strategy)) {
+      $s = strtoupper(trim($strategy));
+      if ($s === 'INSTANT_BOOKING') $booking_type = 'instant';
+      elseif ($s === 'BOOKING_REQUEST') $booking_type = 'request';
+      elseif ($s === 'BOOKING_INQUIRY') $booking_type = 'inquiry';
+    }
+
+    if ($booking_type) {
+      $this->set_meta_unless_locked($post_id, 'hcn_booking_type', $booking_type);
+    } else {
+      delete_post_meta($post_id, 'hcn_booking_type');
+    }
   }
 
 
@@ -477,29 +495,26 @@ class HavenConnect_Property_Importer {
     $payload = $this->api->get_property_dbs_settings($apiKey, $propertyUid);
 
     if (!is_array($payload) || empty($payload)) {
-      $this->logger->log("DBS: empty for {$propertyUid} (leaving existing hcn_booking_type).");
+      $this->logger->log("DBS: empty for {$propertyUid}.");
+      delete_post_meta($post_id, 'hcn_dbs_settings_raw');
+      delete_post_meta($post_id, 'hcn_dbs_enabled');
+      delete_post_meta($post_id, 'hcn_dbs_url');
       return;
     }
 
-    // Store raw for inspection (useful while we confirm exact field names)
+    // Store raw for inspection
     update_post_meta($post_id, 'hcn_dbs_settings_raw', wp_json_encode($payload));
 
-    // Try to find a recognizable booking setting value anywhere in the payload
-    $setting = $this->find_booking_setting_value($payload);
+    // Store DBS enabled + URL (this is about DBS being enabled, not booking strategy)
+    $dbs = (array)($payload['dbs'] ?? []);
+    $enabled = !empty($dbs['enabled']) ? 1 : 0;
+    $url = isset($dbs['url']) && is_string($dbs['url']) ? trim($dbs['url']) : '';
 
-    if (!$setting) {
-      $this->logger->log("DBS: could not detect booking setting for {$propertyUid} (stored raw only).");
-      return;
-    }
+    update_post_meta($post_id, 'hcn_dbs_enabled', $enabled);
+    if ($url !== '') update_post_meta($post_id, 'hcn_dbs_url', $url);
+    else delete_post_meta($post_id, 'hcn_dbs_url');
 
-    $mapped = $this->map_booking_setting_to_meta($setting);
-    if (!$mapped) {
-      $this->logger->log("DBS: detected booking setting '{$setting}' for {$propertyUid} but couldn't map it (stored raw only).");
-      return;
-    }
-
-    update_post_meta($post_id, 'hcn_booking_type', $mapped);
-    $this->logger->log("DBS: booking type for {$propertyUid} => {$mapped} (source='{$setting}').");
+    $this->logger->log("DBS: {$propertyUid} enabled={$enabled}" . ($url !== '' ? " url={$url}" : ""));
   }
 
   /**
@@ -514,24 +529,45 @@ class HavenConnect_Property_Importer {
       'REQUEST',
       'BOOKING_INQUIRY',
       'INQUIRY',
-      'PENDING_APPROVED', // sometimes used in UI wording
+      'PENDING_APPROVED',
       'PENDING',
     ];
 
+    // 1) Direct string match (or contains) anywhere in payload
     if (is_string($node)) {
       $val = strtoupper(trim($node));
       foreach ($candidates as $c) {
         if ($val === $c) return $val;
       }
-      // also match contains for values like "INSTANT_BOOKING_ENABLED"
       foreach ($candidates as $c) {
         if ($c !== '' && strpos($val, $c) !== false) return $val;
       }
+      // also match human strings like "Instant booking", "Booking inquiry"
+      if (strpos($val, 'INSTANT') !== false) return 'INSTANT';
+      if (strpos($val, 'REQUEST') !== false) return 'BOOKING_REQUEST';
+      if (strpos($val, 'INQUIRY') !== false) return 'BOOKING_INQUIRY';
       return null;
     }
 
+    // 2) Look for boolean flags / numeric modes in associative arrays
+    // We do NOT rely on one exact field name; we infer from key semantics.
     if (is_array($node)) {
       foreach ($node as $k => $v) {
+        $key = is_string($k) ? strtoupper((string)$k) : '';
+
+        // Common patterns in DBS settings payloads: instantBookingEnabled=true, bookingInquiry=true, etc.
+        if ($key && (is_bool($v) || is_int($v) || is_string($v))) {
+          // If the value itself is a string, we'll recurse below anyway,
+          // but this lets us infer from keys with boolean/int flags.
+          $truthy = ($v === true) || ($v === 1) || ($v === '1') || ($v === 'true') || ($v === 'TRUE');
+          if ($truthy) {
+            if (strpos($key, 'INSTANT') !== false) return 'INSTANT';
+            if (strpos($key, 'REQUEST') !== false) return 'BOOKING_REQUEST';
+            if (strpos($key, 'INQUIRY') !== false) return 'BOOKING_INQUIRY';
+          }
+        }
+
+        // Recurse into values
         $found = $this->find_booking_setting_value($v);
         if ($found) return $found;
       }
@@ -583,7 +619,7 @@ class HavenConnect_Property_Importer {
 
       if (!term_exists($label, 'hcn_feature')) {
         $res = wp_insert_term($label, 'hcn_feature');
-        if (!is_wp_error($res)) $this->logger->log("Amenity term added: {$label}"); 
+        if (!is_wp_error($res)) $this->logger->log("Amenity term added: {$label}");
       }
       $terms[] = $label;
     }
@@ -592,5 +628,5 @@ class HavenConnect_Property_Importer {
       wp_set_object_terms($post_id, array_values(array_unique($terms)), 'hcn_feature', false);
       $this->logger->log("Amenities assigned to post {$post_id}: " . implode(', ', array_values(array_unique($terms))));
     }
-  }
-}
+  } 
+} 
