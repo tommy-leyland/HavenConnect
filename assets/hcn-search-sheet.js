@@ -60,11 +60,11 @@ const init = () => {
     const calHint   = form.querySelector('[data-hcn-cal-hint]');
 
     // Date tabs / flexible
-    const dateTabs     = form.querySelectorAll('[data-hcn-date-tab]');
-    const datePanels   = form.querySelectorAll('[data-hcn-date-panel]');
-    const durPills     = form.querySelectorAll('[data-hcn-dur]');
-    const flexMonthsEl = form.querySelector('[data-hcn-flex-months]');
-    const tolPills     = form.querySelectorAll('[data-hcn-tol]');
+	const dateTabs     = overlay ? overlay.querySelectorAll('[data-hcn-date-tab]')   : [];
+	const datePanels   = overlay ? overlay.querySelectorAll('[data-hcn-date-panel]') : [];
+	const durPills     = overlay ? overlay.querySelectorAll('[data-hcn-dur]')        : [];
+	const flexMonthsEl = overlay ? overlay.querySelector('[data-hcn-flex-months]')   : null;
+	const tolPills     = overlay ? overlay.querySelectorAll('[data-hcn-tol]')        : [];
 
     // State
     const MN = ['January','February','March','April','May','June','July','August',
@@ -112,6 +112,11 @@ const init = () => {
 		const left  = Math.max(8, Math.min(trigR.left + scrollX, document.documentElement.clientWidth - w - 8));
 		Object.assign(sheet.style, { position:'absolute', top:top+'px', left:left+'px', right:'auto', zIndex:'99999' });
 	};
+	
+	let activeTrigEl = null;
+	window.addEventListener('scroll', () => {
+		if (overlay?.classList.contains('is-open')) positionSheet(activeTrigEl);
+	}, { passive: true });
 
     // ── Open / close ──────────────────────────────────────────────────
     // IMPORTANT: renderCal must be declared before openSheet calls it.
@@ -126,6 +131,7 @@ const init = () => {
         overlay?.classList.remove('is-open');
         overlay?.setAttribute('aria-hidden', 'true');
         setActiveSeg(null);
+		activeTrigEl = null; 
     };
 
     const openSheet = (section, trigEl) => {
@@ -139,6 +145,7 @@ const init = () => {
             selOut = checkoutHidden?.value || '';
             renderCal();  // safe: renderCal is declared below but JS hoists function declarations
         }
+		activeTrigEl = trigEl;
         requestAnimationFrame(() => positionSheet(trigEl));
     };
 

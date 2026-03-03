@@ -31,11 +31,11 @@ class HavenConnect_Search_Bar_Shortcode {
 
         $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
-        wp_enqueue_style('hcn-search-bar',   $base . 'assets/hcn-search-bar.css',   [], '2.0.5');
-        wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '2.0.5');
-        wp_enqueue_script('hcn-search-sheet',$base . 'assets/hcn-search-sheet.js',  [], '2.0.5', true);
-        wp_enqueue_style('hcn-filters',      $base . 'assets/hcn-filters.css',      [], '2.0.5');
-        wp_enqueue_script('hcn-filters',     $base . 'assets/hcn-filters.js',       [], '2.0.5', true);
+        wp_enqueue_style('hcn-search-bar',   $base . 'assets/hcn-search-bar.css',   [], '2.0.6');
+        wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '2.0.6');
+        wp_enqueue_script('hcn-search-sheet',$base . 'assets/hcn-search-sheet.js',  [], '2.0.7', true);
+        wp_enqueue_style('hcn-filters',      $base . 'assets/hcn-filters.css',      [], '2.0.6');
+        wp_enqueue_script('hcn-filters',     $base . 'assets/hcn-filters.js',       [], '2.0.6', true);
 
         $settings = get_option('hcn_settings', []);
 
@@ -128,7 +128,7 @@ class HavenConnect_Search_Bar_Shortcode {
             <input type="hidden" name="max_price" value="<?php echo esc_attr($_GET['max_price'] ?? ''); ?>">
             <input type="hidden" name="features"  value="<?php echo esc_attr($features);  ?>">
             <input type="hidden" name="policies"  value="<?php echo esc_attr($policies);  ?>">
-            <input type="hidden" name="pets"      value="<?php echo esc_attr($pets);      ?>" data-hcn-pets>
+            <input type="hidden" name="features"      value="<?php echo esc_attr($pets);      ?>" data-hcn-pets>
             <input type="hidden" name="location"  value="<?php echo esc_attr($location);  ?>" data-hcn-location>
 
             <!-- BAR -->
