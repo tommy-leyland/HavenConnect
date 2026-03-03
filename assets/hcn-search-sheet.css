@@ -1,11 +1,27 @@
-.hcn-sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.25); display: none; z-index: 9999; }
+body { position: relative; }
+.hcn-sheet-overlay {
+    position: absolute;          /* changed: anchors to document, not viewport */
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100%;
+    background: transparent;     /* no backdrop needed — click-outside handled by JS */
+    display: none;
+    z-index: 9999;
+    pointer-events: none;        /* overlay itself is transparent to clicks */
+}
 .hcn-sheet-overlay.is-open { display: block; }
 
 .hcn-sheet {
-    position: absolute; top: calc(100% + 8px); left: 0;
-    width: 380px; max-width: calc(100vw - 32px);
-    background: #f6f3ee; border-radius: 20px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.18); padding: 14px; z-index: 10000;
+    position: absolute;          /* now anchors to document via the absolute overlay */
+    pointer-events: all;         /* sheet itself catches clicks normally */
+    /* top/left set by JS positionSheet() */
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    background: #f6f3ee;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
+    padding: 14px;
 }
 @media (max-width: 600px) { .hcn-sheet { left: 50%; transform: translateX(-50%); width: calc(100vw - 32px); } }
 
@@ -97,4 +113,37 @@
 /* Sheet footer */
 .hcn-sheet__actions { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 12px; }
 .hcn-sheet__clear { background: none; border: 0; text-decoration: underline; cursor: pointer; font-size: 13px; font-family: inherit; }
-.hcn-sheet__apply { background: #b69068; color: #fff; border: 0; border-radius: 12px; padding: 12px 20px; font-weight: 700; font-family: inherit; cursor: pointer; font-size: 14px; }
+.hcn-sheet__apply { background: #b69068; color: #fff; border: 0; border-radius: 12px; padding: 12px 20px; font-weight: 700; font-family: inherit; cursor: pointer; font-size: 14px; }
+
+/* Remove any pointer-events:none from [data-hcn-sheet-overlay] */
+[data-hcn-sheet-overlay] {
+    display: none;  /* hidden until is-open */
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    pointer-events: none; /* backdrop transparent to clicks — sheet inside handles its own */
+}
+[data-hcn-sheet-overlay].is-open {
+    display: block;
+}
+/* Sheet itself must intercept clicks (so click-outside logic works) */
+[data-hcn-sheet] {
+    pointer-events: all;
+    z-index: 99999;
+}
+
+/* Same for filters popup overlay */
+[data-hcn-filters-pop-overlay] {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    pointer-events: none;
+}
+[data-hcn-filters-pop-overlay].is-open {
+    display: block;
+}
+[data-hcn-filters-pop] {
+    pointer-events: all;
+    z-index: 99999;
+}

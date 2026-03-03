@@ -43,6 +43,26 @@ class HavenConnect_Api_Client {
 
     return null;
   }
+  
+  public function get_property_tags(string $apiKey, string $propertyUid): array {
+	  $endpoints = [
+		"https://platform.hostfully.com/api/v3.2/tags" => ["X-HOSTFULLY-APIKEY" => $apiKey],
+		"https://sandbox.hostfully.com/api/v3.2/tags"  => ["X-HOSTFULLY-APIKEY" => $apiKey],
+	  ];
+
+	  // Hostfully Tags API expects objectUid + objectType
+	  $parsed = $this->request($endpoints, [
+		'objectUid'  => $propertyUid,
+		'objectType' => 'PROPERTY',
+	  ]);
+
+	  if (!is_array($parsed)) return [];
+
+	  // Depending on contract, tags may be nested or returned directly
+	  if (isset($parsed['tags']) && is_array($parsed['tags'])) return $parsed['tags'];
+
+	  return $parsed;
+	}
 
   /** Shared POST wrapper (JSON). */
   public function request_post(array $endpoints, array $payload = []) {

@@ -1,15 +1,17 @@
 /* HavenConnect Search Bar v2.0 */
 .hcn-searchbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-family:'Lexend',sans-serif;position:relative}
 .hcn-searchbar__row{display:flex;align-items:center;gap:0;background:#fff;border:1px solid #e7e7e7;border-radius:999px;padding:8px 8px 8px 4px;min-height:58px;box-shadow:0 8px 24px rgba(0,0,0,.08);flex:1;min-width:280px;position:relative}
-.hcn-searchbar__seg{display:flex;align-items:center;gap:9px;padding:6px 16px;border:0;background:transparent;cursor:pointer;font-size:15px;color:#333;white-space:nowrap;flex:1;min-width:0}
-.hcn-searchbar__seg:hover{background:rgba(0,0,0,.03);border-radius:999px}
+.hcn-searchbar__seg{display:flex;align-items:center;gap:9px;padding:6px 16px;border:0;background:transparent;cursor:pointer;font-size:15px;color:#333;white-space:nowrap;flex:1;min-width:0;border-radius:999px;transition:background .15s,box-shadow .15s}
+.hcn-searchbar__seg:hover{background:rgba(0,0,0,.04)}
+/* Active state: visible border ring around the segment */
+.hcn-searchbar__seg.is-active{background:rgba(0,0,0,.05);box-shadow:0 0 0 2px #b69068 inset}
 .hcn-searchbar__icon{display:flex;align-items:center;opacity:.65;flex:0 0 auto}
 .hcn-searchbar__icon svg{display:block;color:#b69068}
 .hcn-searchbar__sep{width:1px;height:28px;background:#e5e5e5;flex:0 0 auto;margin:0 2px}
 .hcn-searchbar__go{width:44px;height:44px;border-radius:999px;border:0;background:#b69068;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;margin-left:4px;transition:transform .15s,background .15s}
 .hcn-searchbar__go:hover{background:#a07a55;transform:scale(1.05)}
 .hcn-searchbar__go svg{display:block}
-.hcn-searchbar__filters{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e7e7e7;border-radius:999px;padding:0 18px;height:58px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.08);position:relative;color:#000;font-size:15px;white-space:nowrap;flex:0 0 auto}
+.hcn-searchbar__filters{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e7e7e7;border-radius:999px;padding:0 18px;height:58px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.08);position:relative;color:#000;font-size:15px;white-space:nowrap;flex:0 0 auto;transition:background .15s}
 .hcn-searchbar__filters:hover{background:#fafafa}
 .hcn-searchbar__filters svg{opacity:.75}
 .hcn-dot{width:9px;height:9px;border-radius:50%;background:#000;position:absolute;right:5px;top:6px;display:none}

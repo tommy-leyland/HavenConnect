@@ -31,11 +31,11 @@ class HavenConnect_Search_Bar_Shortcode {
 
         $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
-        wp_enqueue_style('hcn-search-bar',   $base . 'assets/hcn-search-bar.css',   [], '2.0.1');
-        wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '2.0.1');
-        wp_enqueue_script('hcn-search-sheet',$base . 'assets/hcn-search-sheet.js',  [], '2.0.1', true);
-        wp_enqueue_style('hcn-filters',      $base . 'assets/hcn-filters.css',      [], '2.0.1');
-        wp_enqueue_script('hcn-filters',     $base . 'assets/hcn-filters.js',       [], '2.0.1', true);
+        wp_enqueue_style('hcn-search-bar',   $base . 'assets/hcn-search-bar.css',   [], '2.0.4');
+        wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '2.0.4');
+        wp_enqueue_script('hcn-search-sheet',$base . 'assets/hcn-search-sheet.js',  [], '2.0.4', true);
+        wp_enqueue_style('hcn-filters',      $base . 'assets/hcn-filters.css',      [], '2.0.4');
+        wp_enqueue_script('hcn-filters',     $base . 'assets/hcn-filters.js',       [], '2.0.4', true);
 
         $settings = get_option('hcn_settings', []);
 
