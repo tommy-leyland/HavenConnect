@@ -1,0 +1,152 @@
+/* ============================================================
+   hcn-results-layout.css
+   Layout shell for [hcn_results_layout] wrapper shortcode.
+   Controls the toolbar, the 60/40 split, and the map-hidden state.
+   ============================================================ */
+
+/* ── Wrapper ─────────────────────────────────────────────── */
+.hcn-layout {
+    width: 100%;
+    font-family: 'Lexend', sans-serif;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────── */
+.hcn-layout__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #e8e8e8;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.hcn-layout__count {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.hcn-layout__toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Sort */
+.hcn-layout__sort-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hcn-layout__sort-label {
+    font-size: 14px;
+    color: #555;
+    white-space: nowrap;
+}
+
+.hcn-layout__sort {
+    font-family: inherit;
+    font-size: 14px;
+    color: #1a1a1a;
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    padding: 7px 32px 7px 12px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' viewBox='0 0 12 8'%3E%3Cpath stroke='%23555' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+}
+
+.hcn-layout__sort:focus {
+    outline: 2px solid #a65710;
+    outline-offset: 1px;
+}
+
+/* Map toggle button */
+.hcn-layout__map-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a1a1a;
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.hcn-layout__map-btn:hover {
+    background: #f5f5f5;
+    border-color: #bbb;
+}
+
+/* ── Content row ─────────────────────────────────────────── */
+.hcn-layout__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+}
+
+.hcn-layout__results {
+    flex: 0 0 60%;
+    min-width: 0;
+    transition: flex-basis 0.25s ease;
+}
+
+.hcn-layout__map {
+    flex: 1 1 40%;
+    min-width: 0;
+    position: sticky;
+    top: 80px;          /* below a fixed nav — adjust to match your theme */
+    transition: opacity 0.2s ease;
+}
+
+/* Map fills the sticky column height */
+.hcn-layout__map .hcn-map-wrap,
+.hcn-layout__map #hcn-map {
+    height: 100% !important;
+    min-height: 560px;
+}
+
+/* ── Map-hidden state ────────────────────────────────────── */
+.hcn-layout--map-hidden .hcn-layout__map {
+    display: none;
+}
+
+.hcn-layout--map-hidden .hcn-layout__results {
+    flex-basis: 100%;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .hcn-layout__row {
+        flex-direction: column;
+    }
+
+    .hcn-layout__results,
+    .hcn-layout__map {
+        flex: none;
+        width: 100%; 
+    }
+
+    .hcn-layout__map {
+        position: static;
+        min-height: 340px;
+    }
+
+    /* Hide map button hidden on mobile — map stacks below */
+    .hcn-layout__map-btn {
+        display: none;
+    }
+}

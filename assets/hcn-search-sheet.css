@@ -1,6 +1,6 @@
 body { position: relative; }
 .hcn-sheet-overlay {
-    position: absolute;          /* changed: anchors to document, not viewport */
+    position: fixed;             /* fixed to viewport so JS uses viewport coords */
     top: 0;
     left: 0;
     width: 100%;
@@ -11,7 +11,6 @@ body { position: relative; }
     pointer-events: none;        /* overlay itself is transparent to clicks */
 }
 .hcn-sheet-overlay.is-open { display: block; }
-
 .hcn-sheet {
     position: absolute;          /* now anchors to document via the absolute overlay */
     pointer-events: all;         /* sheet itself catches clicks normally */
@@ -24,16 +23,13 @@ body { position: relative; }
     padding: 14px;
 }
 @media (max-width: 600px) { .hcn-sheet { left: 50%; transform: translateX(-50%); width: calc(100vw - 32px); } }
-
 .hcn-sheet__close {
     position: absolute; right: 12px; top: 12px; width: 32px; height: 32px;
     border: 0; border-radius: 50%; background: #fff; cursor: pointer; font-size: 16px;
     display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,.08);
 }
-
 .hcn-acc { background: #fff; border-radius: 14px; border: 1px solid rgba(0,0,0,.07); overflow: hidden; }
 .hcn-acc + .hcn-acc { margin-top: 10px; }
-
 .hcn-acc__head {
     display: flex; align-items: center; justify-content: space-between;
     width: 100%; background: transparent; border: 0;
@@ -42,10 +38,8 @@ body { position: relative; }
 .hcn-acc__title { font-weight: 700; font-size: 14px; }
 .hcn-acc__value { font-size: 13px; opacity: .75; display: flex; align-items: center; gap: 5px; margin-left: auto; }
 .hcn-acc__value svg { opacity: .6; }
-
 .hcn-acc__panel { display: none; padding: 4px 14px 16px; border-top: 1px solid rgba(0,0,0,.06); }
 .hcn-acc.is-open .hcn-acc__panel { display: block; }
-
 /* Location */
 .hcn-loc-search-wrap {
     display: flex; align-items: center; gap: 10px;
@@ -54,7 +48,6 @@ body { position: relative; }
 }
 .hcn-loc-search-icon { opacity: .5; display: flex; flex-shrink: 0; }
 .hcn-loc-input { border: 0; outline: 0; font-size: 14px; font-family: inherit; width: 100%; background: transparent; }
-
 .hcn-popular-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; opacity: .5; margin-bottom: 8px; padding: 0 2px; }
 .hcn-loc-list { font-size: 14px; }
 .hcn-loc-item { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-top: 1px solid rgba(0,0,0,.06); cursor: pointer; transition: opacity .15s; }
@@ -62,12 +55,10 @@ body { position: relative; }
 .hcn-loc-item:hover { opacity: .7; }
 .hcn-loc-item__icon { opacity: .5; display: flex; }
 .hcn-loc-expand { background: none; border: 0; padding: 8px 4px; font-size: 13px; cursor: pointer; opacity: .6; text-decoration: underline; width: 100%; text-align: left; margin-top: 4px; font-family: inherit; }
-
 /* Date tabs */
 .hcn-date-tabs { display: flex; background: #f0ede8; border-radius: 999px; padding: 3px; gap: 2px; margin-bottom: 14px; }
 .hcn-date-tab { flex: 1; border: 0; border-radius: 999px; padding: 8px 0; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: rgba(0,0,0,.6); transition: all .15s; }
 .hcn-date-tab.is-active { background: #fff; color: #000; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
-
 /* Two-month calendar */
 .hcn-cal-two-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 480px) { .hcn-cal-two-wrap { grid-template-columns: 1fr; } .hcn-cal-col:last-child { display: none; } }
@@ -83,12 +74,10 @@ body { position: relative; }
 .hcn-cal-day.is-today { font-weight: 700; }
 .hcn-cal-day.is-past { opacity: .3; cursor: default; pointer-events: none; }
 .hcn-cal-hint { font-size: 11px; opacity: .5; margin-top: 6px; min-height: 16px; }
-
 /* Flex chips */
 .hcn-date-flex-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .hcn-flex-chip { border: 1px solid rgba(0,0,0,.15); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; font-family: inherit; transition: all .15s; }
 .hcn-flex-chip.is-active { border-color: #b69068; background: rgba(182,144,104,.12); font-weight: 600; }
-
 /* Flexible panel */
 .hcn-flex-stay-label, .hcn-flex-when-label { font-weight: 700; font-size: 13px; margin: 14px 0 10px; }
 .hcn-flex-stay-chips { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -100,7 +89,6 @@ body { position: relative; }
 .hcn-flex-month-card__icon { font-size: 18px; margin-bottom: 4px; }
 .hcn-flex-month-card__name { font-size: 12px; font-weight: 600; }
 .hcn-flex-month-card__year { font-size: 10px; opacity: .5; }
-
 /* Guests */
 .hcn-guest-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(0,0,0,.06); }
 .hcn-guest-row:first-child { border-top: 0; }
@@ -109,7 +97,6 @@ body { position: relative; }
 .hcn-stepper { display: inline-flex; gap: 10px; align-items: center; }
 .hcn-stepper button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(0,0,0,.2); background: #fff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
 .hcn-stepper__n { min-width: 22px; text-align: center; font-weight: 700; }
-
 /* Sheet footer */
 .hcn-sheet__actions { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 12px; }
 .hcn-sheet__clear { background: none; border: 0; text-decoration: underline; cursor: pointer; font-size: 13px; font-family: inherit; }

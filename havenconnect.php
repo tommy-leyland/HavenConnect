@@ -42,6 +42,7 @@ hcn_require('class-availability-cleanup-hooks.php');
 hcn_require('class-search-shortcode.php');
 hcn_require('class-search-bar-shortcode.php');
 hcn_require('class-map-shortcode.php');
+hcn_require('class-results-layout-shortcode.php');
 hcn_require('class-loggia-availability-importer.php');
 hcn_require('class-property-calendar.php');
 hcn_require('class-property-gallery.php');
@@ -139,6 +140,7 @@ add_action('init', function () {
 	// --- Shortcodes (instantiated here so they share the same init pass)
     $GLOBALS['havenconnect']['map']               = new HavenConnect_Map_Shortcode();
     $GLOBALS['havenconnect']['search_bar']        = new HavenConnect_Search_Bar_Shortcode();
+	$GLOBALS['havenconnect']['results_layout']    = new HavenConnect_Results_Layout_Shortcode();
     $GLOBALS['havenconnect']['search_shortcode']  = new HavenConnect_Search_Shortcode();
 	$GLOBALS['havenconnect']['property_calendar'] = new HavenConnect_Property_Calendar();
 	$GLOBALS['havenconnect']['checkout']           = new HavenConnect_Checkout_Shortcode();

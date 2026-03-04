@@ -1,8 +1,6 @@
 /* HavenConnect Filters Popup v2.0 */
-.hcn-filters-pop-overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;z-index:10000;pointer-events:none}
-.hcn-filters-pop-overlay.is-open{display:block}
-.hcn-filters-pop{position:absolute;width:360px;max-width:calc(100vw - 24px);background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.18);padding:0;z-index:10001;pointer-events:all;overflow:hidden}
-@media(max-width:560px){.hcn-filters-pop{width:calc(100vw - 24px);right:12px !important}}
+.hcn-filters-pop{display:none;position:absolute;top:calc(100% + 8px);right:0;width:360px;max-width:calc(100vw - 24px);background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.18);padding:0;z-index:10001;overflow:hidden}
+.hcn-filters-pop[aria-hidden="false"]{display:block}
 .hcn-filters-pop__head{display:flex;align-items:center;justify-content:center;padding:16px 16px 12px;border-bottom:1px solid rgba(0,0,0,.07);position:relative}
 .hcn-filters-pop__title{font-weight:700;font-size:15px}
 .hcn-filters__close{position:absolute;right:12px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:1px solid rgba(0,0,0,.15);border-radius:999px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -30,4 +28,5 @@
 .hcn-muted-sm{font-size:12px;opacity:.6}
 .hcn-filters__actions{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-top:1px solid rgba(0,0,0,.07)}
 .hcn-filters__clear{background:none;border:0;text-decoration:underline;cursor:pointer;font-size:13px}
-.hcn-filters__apply{background:#b69068;color:#fff;border:0;border-radius:12px;padding:12px 24px;font-weight:700;cursor:pointer}
+.hcn-filters__apply{background:#b69068;color:#fff;border:0;border-radius:12px;padding:12px 24px;font-weight:700;cursor:pointer}
+@media(max-width:560px){.hcn-filters-pop{width:calc(100vw - 24px);right:0}}
