@@ -31,11 +31,11 @@ class HavenConnect_Search_Bar_Shortcode {
 
         $base = defined('HCN_PLUGIN_URL') ? HCN_PLUGIN_URL : plugin_dir_url(dirname(__FILE__));
 
-        wp_enqueue_style('hcn-search-bar',   $base . 'assets/hcn-search-bar.css',   [], '2.0.8');
-        wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '2.0.8');
-        wp_enqueue_script('hcn-search-sheet',$base . 'assets/hcn-search-sheet.js',  [], '2.0.8', true);
-        wp_enqueue_style('hcn-filters',      $base . 'assets/hcn-filters.css',      [], '2.0.8');
-        wp_enqueue_script('hcn-filters',     $base . 'assets/hcn-filters.js',       [], '2.0.8', true);
+        wp_enqueue_style('hcn-search-bar',   $base . 'assets/hcn-search-bar.css',   [], '2.1.0');
+        wp_enqueue_style('hcn-search-sheet', $base . 'assets/hcn-search-sheet.css', [], '2.1.0');
+        wp_enqueue_script('hcn-search-sheet',$base . 'assets/hcn-search-sheet.js',  [], '2.1.0', true);
+        wp_enqueue_style('hcn-filters',      $base . 'assets/hcn-filters.css',      [], '2.1.0');
+        wp_enqueue_script('hcn-filters',     $base . 'assets/hcn-filters.js',       [], '2.1.0', true);
 
         $settings = get_option('hcn_settings', []);
 
@@ -128,7 +128,6 @@ class HavenConnect_Search_Bar_Shortcode {
             <input type="hidden" name="max_price" value="<?php echo esc_attr($_GET['max_price'] ?? ''); ?>">
             <input type="hidden" name="features"  value="<?php echo esc_attr($features);  ?>">
             <input type="hidden" name="policies"  value="<?php echo esc_attr($policies);  ?>">
-            <input type="hidden" name="pets"          value="<?php echo esc_attr($pets);      ?>" data-hcn-pets>
             <input type="hidden" name="location"  value="<?php echo esc_attr($location);  ?>" data-hcn-location>
 			
 			<input type="hidden" name="date_tolerance"   data-hcn-tol-val value="0">
@@ -386,9 +385,15 @@ class HavenConnect_Search_Bar_Shortcode {
                         <div class="hcn-chips hcn-chips--features" data-hcn-feature-chips></div>
                     </div>
 
-                    <!-- Policies -->
-                    <div class="hcn-filter-section" data-hcn-policies-section>
+                    <!-- Policies (hardcoded: pet-friendly, allows-parties → written into features) -->
+                    <div class="hcn-filter-section" data-hcn-pol-hard-section>
                         <div class="hcn-filter-section__title">Policies</div>
+                        <div class="hcn-chips hcn-chips--policies" data-hcn-pol-hard-chips></div>
+                    </div>
+
+                    <!-- Dynamic policy chips from Settings (hidden if none configured) -->
+                    <div class="hcn-filter-section" data-hcn-policies-section style="display:none;">
+                        <div class="hcn-filter-section__title">More policies</div>
                         <div class="hcn-chips hcn-chips--policies" data-hcn-policy-chips></div>
                     </div>
 

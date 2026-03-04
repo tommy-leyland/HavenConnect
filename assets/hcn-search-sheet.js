@@ -2,21 +2,15 @@
 
 'use strict';
 
-
-
 const init = () => {
 
     const form = document.querySelector('[data-hcn-searchbar]');
 
     if (!form) return;
 
-
-
     const cfg      = window.HCN_SEARCH_BAR || {};
 
     const ajaxMode = !!cfg.ajax;
-
-
 
     // Hidden inputs
 
@@ -28,15 +22,12 @@ const init = () => {
 
     const guestsHidden   = form.querySelector('[data-hcn-guests]');
 
-    const petsHidden     = form.querySelector('[data-hcn-pets]');
 
     const tolVal         = form.querySelector('[data-hcn-tol-val]');
 
     const flexDur        = form.querySelector('[data-hcn-flex-dur]');
 
     const flexMonthsVal  = form.querySelector('[data-hcn-flex-months-val]');
-
-
 
     // Bar
 
@@ -54,8 +45,6 @@ const init = () => {
 
     const guestsLabel = form.querySelector('[data-hcn-guests-label]');
 
-
-
     // Sheet — stays inside form, positioned with position:fixed
 
     const overlay  = form.querySelector('[data-hcn-sheet-overlay]');
@@ -68,8 +57,6 @@ const init = () => {
 
     const applyBtn = form.querySelector('[data-hcn-sheet-apply]');
 
-
-
     // Accordions
 
     const accLoc    = form.querySelector('[data-hcn-acc="location"]');
@@ -80,15 +67,11 @@ const init = () => {
 
     const allAcc    = [accLoc, accDates, accGuests].filter(Boolean);
 
-
-
     // Location
 
     const locSearch   = form.querySelector('[data-hcn-loc-search]');
 
     const locListWrap = form.querySelector('[data-hcn-popular-wrap]');
-
-
 
     // Guests
 
@@ -99,8 +82,6 @@ const init = () => {
     const gInfants  = form.querySelector('[data-hcn-guest="infants"]');
 
     const gPets     = form.querySelector('[data-hcn-guest="pets"]');
-
-
 
     // Calendar — dual month
 
@@ -118,8 +99,6 @@ const init = () => {
 
     const calHint   = form.querySelector('[data-hcn-cal-hint]');
 
-
-
     // Date tabs / flexible
 
 	const dateTabs     = overlay ? overlay.querySelectorAll('[data-hcn-date-tab]')   : [];
@@ -131,8 +110,6 @@ const init = () => {
 	const flexMonthsEl = overlay ? overlay.querySelector('[data-hcn-flex-months]')   : null;
 
 	const tolPills     = overlay ? overlay.querySelectorAll('[data-hcn-tol]')        : [];
-
-
 
     // State
 
@@ -153,8 +130,6 @@ const init = () => {
         (flexMonthsVal?.value || '').split(',').map(s => s.trim()).filter(Boolean)
 
     );
-
-
 
     // ── URL sync ──────────────────────────────────────────────────────
 
@@ -180,8 +155,6 @@ const init = () => {
 
     };
 
-
-
     // ── Active segment border ─────────────────────────────────────────
 
     const setActiveSeg = seg => {
@@ -191,8 +164,6 @@ const init = () => {
         seg?.classList.add('is-active');
 
     };
-
-
 
     // ── Position: fixed coords, sheet stays inside form ───────────────
 
@@ -236,8 +207,6 @@ const init = () => {
 
 	}, { passive: true });
 
-
-
     // ── Open / close ──────────────────────────────────────────────────
 
     // IMPORTANT: renderCal must be declared before openSheet calls it.
@@ -254,8 +223,6 @@ const init = () => {
 
     };
 
-
-
     const closeSheet = () => {
 
         overlay?.classList.remove('is-open');
@@ -267,8 +234,6 @@ const init = () => {
 		activeTrigEl = null; 
 
     };
-
-
 
     const openSheet = (section, trigEl) => {
 
@@ -298,8 +263,6 @@ const init = () => {
 
     };
 
-
-
     allAcc.forEach(acc =>
 
         acc.querySelector('[data-hcn-acc-head]')?.addEventListener('click', () =>
@@ -310,27 +273,19 @@ const init = () => {
 
     );
 
-
-
     trigLoc?.addEventListener('click',    e => { e.preventDefault(); openSheet('location', trigLoc);    });
 
     trigDates?.addEventListener('click',  e => { e.preventDefault(); openSheet('dates',    trigDates);  });
 
     trigGuests?.addEventListener('click', e => { e.preventDefault(); openSheet('guests',   trigGuests); });
 
-
-
     // X button — stopPropagation prevents the capture listener below from also firing
 
     closeBtn?.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); closeSheet(); });
 
-
-
     // Escape
 
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
-
-
 
     // Click outside — capture phase ensures it fires even if inner handlers stop bubbling
 
@@ -346,13 +301,9 @@ const init = () => {
 
     }, true);
 
-
-
     // ── Bar labels ────────────────────────────────────────────────────
 
     const capWords = s => s ? s.replace(/[-_]/g,' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
-
-
 
     const setBarLabels = () => {
 
@@ -396,8 +347,6 @@ const init = () => {
 
     };
 
-
-
     // ── Location list ─────────────────────────────────────────────────
 
     const PIN  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#b69068" stroke-width="2"><path stroke-linecap="round" d="M12 2C8.686 2 6 4.686 6 8c0 5.25 6 13 6 13s6-7.75 6-13c0-3.314-2.686-6-6-6z"/></svg>`;
@@ -405,8 +354,6 @@ const init = () => {
     const CHEV = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>`;
 
     const esc  = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
-
 
     const renderListItems = items => {
 
@@ -438,11 +385,7 @@ const init = () => {
 
     };
 
-
-
     const renderPopular = () => renderListItems(Array.isArray(cfg.popularLocations) ? cfg.popularLocations : []);
-
-
 
     const fetchLocSuggestions = async q => {
 
@@ -461,8 +404,6 @@ const init = () => {
         return json?.success && Array.isArray(json.data?.items) ? json.data.items : [];
 
     };
-
-
 
     renderPopular();
 
@@ -488,8 +429,6 @@ const init = () => {
 
     });
 
-
-
     // ── Guest steppers ────────────────────────────────────────────────
 
     const bindStepper = wrap => {
@@ -512,8 +451,6 @@ const init = () => {
 
     };
 
-
-
     const updateGuestsTotal = () => {
 
         const a = parseInt(gAdults?.querySelector('[data-hcn-step-out]')?.textContent   || '0', 10) || 0;
@@ -524,27 +461,25 @@ const init = () => {
 
         if (guestsHidden) guestsHidden.value = (a+c) ? String(a+c) : '';
 
-        // Write 'pet-friendly' when pets > 0 so search adds &pets=pet-friendly
-
-        if (petsHidden) petsHidden.value = p > 0 ? 'pet-friendly' : '';
+        // Add/remove 'pet-friendly' from the shared features hidden input
+        const inFeatures = form.querySelector('[name="features"]');
+        if (inFeatures) {
+            const slugs = new Set((inFeatures.value || '').split(',').map(s => s.trim()).filter(Boolean));
+            if (p > 0) slugs.add('pet-friendly'); else slugs.delete('pet-friendly');
+            inFeatures.value = [...slugs].join(',');
+        }
 
         setBarLabels();
 
     };
 
-
-
     [gAdults, gChildren, gInfants, gPets].forEach(bindStepper);
-
-
 
     // ── Dual calendar ─────────────────────────────────────────────────
 
     const ymd      = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
     const parseYmd = s => s ? new Date(s + 'T00:00:00') : null;
-
-
 
     const renderCalMonth = (grid, monthEl, year, month) => {
 
@@ -598,8 +533,6 @@ const init = () => {
 
     };
 
-
-
     // renderCal declared as function (not const) so openSheet can reference it before this point
 
     function renderCal() {
@@ -612,13 +545,9 @@ const init = () => {
 
     }
 
-
-
     btnPrev?.addEventListener('click', e => { e.preventDefault(); calView.setMonth(calView.getMonth()-1); renderCal(); });
 
     btnNext?.addEventListener('click', e => { e.preventDefault(); calView.setMonth(calView.getMonth()+1); renderCal(); });
-
-
 
     // ── Date tabs ─────────────────────────────────────────────────────
 
@@ -636,8 +565,6 @@ const init = () => {
 
     }));
 
-
-
     // ── Tolerance pills ───────────────────────────────────────────────
 
     tolPills.forEach(pill => pill.addEventListener('click', e => {
@@ -649,8 +576,6 @@ const init = () => {
         if (tolVal) tolVal.value = pill.getAttribute('data-hcn-tol') || '0';
 
     }));
-
-
 
     // ── Flexible duration pills ───────────────────────────────────────
 
@@ -664,13 +589,9 @@ const init = () => {
 
     }));
 
-
-
     // ── Flexible month grid ───────────────────────────────────────────
 
     const CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
-
-
 
     const renderFlexMonths = () => {
 
@@ -704,11 +625,7 @@ const init = () => {
 
     };
 
-
-
     renderFlexMonths();
-
-
 
     // ── Clear / Apply ─────────────────────────────────────────────────
 
@@ -726,7 +643,13 @@ const init = () => {
 
         if (guestsHidden)   guestsHidden.value   = '';
 
-        if (petsHidden)     petsHidden.value     = '';
+        // Remove pet-friendly from features on clear
+        const inFeatClear = form.querySelector('[name="features"]');
+        if (inFeatClear) {
+            const slugs = new Set((inFeatClear.value || '').split(',').map(s => s.trim()).filter(Boolean));
+            slugs.delete('pet-friendly');
+            inFeatClear.value = [...slugs].join(',');
+        }
 
         if (tolVal)         tolVal.value         = '0';
 
@@ -747,8 +670,6 @@ const init = () => {
         renderCal(); renderPopular(); renderFlexMonths(); setBarLabels(); syncUrl();
 
     });
-
-
 
     applyBtn?.addEventListener('click', e => {
 
@@ -788,8 +709,6 @@ const init = () => {
 
     });
 
-
-
     // Init
 
     setBarLabels();
@@ -800,10 +719,8 @@ const init = () => {
 
 };
 
-
-
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 
 else init();
 
-})(); 
+})();
