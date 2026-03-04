@@ -43,17 +43,17 @@ class HavenConnect_Availability_Importer {
       $from  = $from ?: gmdate('Y-m-d', $nowTs);
       $to    = $to   ?: gmdate('Y-m-d', strtotime('+365 days', $nowTs));
 
-      // (Optional) keep your 30-day clamp while testing, same as Hostfully method
+      // Clamp to max 365 days
       $fromTs  = strtotime($from . ' 00:00:00 UTC');
       $toTs    = strtotime($to   . ' 00:00:00 UTC');
-      $maxToTs = strtotime('+30 days', $fromTs);
-      if ($toTs === false || $fromTs === false) {
+      $maxToTs = strtotime('+365 days', $fromTs);
+      if (!$fromTs || !$toTs) {
         $from = gmdate('Y-m-d');
-        $to   = gmdate('Y-m-d', strtotime('+30 days'));
-        $this->logger->log("Loggia Availability: invalid dates provided; defaulted to {$from}→{$to} for test.");
+        $to   = gmdate('Y-m-d', strtotime('+365 days'));
+        $this->logger->log("Loggia Availability: invalid dates, defaulted to {$from}→{$to}.");
       } elseif ($toTs > $maxToTs) {
         $to = gmdate('Y-m-d', $maxToTs);
-        $this->logger->log("Loggia Availability: clamped date range to {$from}→{$to} (max 30 days for test).");
+        $this->logger->log("Loggia Availability: clamped to {$from}→{$to} (max 365 days).");
       }
 
       $this->logger->log("Loggia Availability: fetching {$loggia_property_id} {$from}→{$to}");
@@ -106,8 +106,8 @@ class HavenConnect_Availability_Importer {
         $status_desc = strtolower((string)($info['status_desc'] ?? ''));
         $price = isset($info['price']) && $info['price'] !== '' ? (float)$info['price'] : null;
 
-        // available only if status says available AND we have a price
-        $is_available = ($status_desc === 'available') && ($price !== null);
+        // Availability determined by status alone; price may be null for open dates
+        $is_available = ($status_desc === 'available');
 
         $entries[] = [
           'date' => $date,
@@ -159,22 +159,19 @@ class HavenConnect_Availability_Importer {
         $from  = $from ?: gmdate('Y-m-d', $nowTs);
         $to    = $to   ?: gmdate('Y-m-d', strtotime('+365 days', $nowTs));
 
-		// --- ONE-MONTH TEST LIMIT (clamp) ---
-			// Force $to to be no more than 30 days after $from
-			$fromTs   = strtotime($from . ' 00:00:00 UTC');
-			$toTs     = strtotime($to   . ' 00:00:00 UTC');
-			$maxToTs  = strtotime('+30 days', $fromTs);
+		// Clamp to max 365 days
+			$fromTs  = strtotime($from . ' 00:00:00 UTC');
+			$toTs    = strtotime($to   . ' 00:00:00 UTC');
+			$maxToTs = strtotime('+365 days', $fromTs);
 
-			if ($toTs === false || $fromTs === false) {
-				// Fallback: if parsing failed, just set a safe 30-day window from today
+			if (!$fromTs || !$toTs) {
 				$from = gmdate('Y-m-d');
-				$to   = gmdate('Y-m-d', strtotime('+30 days'));
-				$this->logger->log("Availability: invalid dates provided; defaulted to {$from}→{$to} for test.");
+				$to   = gmdate('Y-m-d', strtotime('+365 days'));
+				$this->logger->log("Availability: invalid dates, defaulted to {$from}→{$to}.");
 			} elseif ($toTs > $maxToTs) {
 				$to = gmdate('Y-m-d', $maxToTs);
-				$this->logger->log("Availability: clamped date range to {$from}→{$to} (max 30 days for test).");
+				$this->logger->log("Availability: clamped to {$from}→{$to} (max 365 days).");
 			}
-		// ------------------------------------
 
         $this->logger->log("Availability: fetching {$propertyUid} {$from}→{$to}");
 

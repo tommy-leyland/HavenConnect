@@ -204,6 +204,9 @@ class HavenConnect_Loggia_Importer {
       $this->save_payload_snapshot($post_id, 'loggia_features_json', $features);
     }
 
+    // ---- Availability + pricing sync ----
+    $this->sync_availability($client, $property_id, $page_id, $locale, $post_id);
+
     $this->flush();
     return (int)$post_id;
   }
@@ -468,6 +471,88 @@ class HavenConnect_Loggia_Importer {
         $this->walk($v, $cb, $pass_key);
       }
     }
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Availability + pricing sync (called at end of every import_one)
+  // -------------------------------------------------------------------------
+  private function sync_availability(
+    HavenConnect_Loggia_Client $client,
+    string $property_id,
+    string $page_id,
+    string $locale,
+    int    $post_id
+  ): void {
+    global $wpdb;
+    $table = $wpdb->prefix . 'hcn_availability';
+
+    $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+    if ($exists !== $table) {
+      $this->log("Loggia avail: table missing, skipping.");
+      return;
+    }
+
+    $from = gmdate('Y-m-d');
+    $to   = gmdate('Y-m-d', strtotime('+365 days'));
+    $this->log("Loggia avail: syncing {$property_id} {$from}→{$to}");
+
+    $offset        = 0;
+    $limit         = 50;
+    $rows_upserted = 0;
+
+    while (true) {
+      $resp = $client->list_properties_v2($page_id, $locale, $from, $to, $offset, $limit, false);
+      if (!is_array($resp) || empty($resp['properties']) || !is_array($resp['properties'])) break;
+
+      foreach ($resp['properties'] as $p) {
+        if (!is_array($p)) continue;
+        $pid = (string)($p['property_id'] ?? $p['id'] ?? '');
+        if ($pid !== $property_id) continue; // only our property
+
+        $avail = $p['availability'] ?? null;
+        if (!is_array($avail)) continue;
+
+        foreach ($avail as $day => $info) {
+          if (!is_array($info)) continue;
+          $for_date    = (string)($info['date'] ?? $day);
+          if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $for_date)) continue;
+
+          $status_desc = strtolower((string)($info['status_desc'] ?? ''));
+          $status      = (int)($info['status'] ?? 0);
+          $price       = (isset($info['price']) && $info['price'] !== '') ? (float)$info['price'] : null;
+
+          // Availability is determined by status alone — price may be null for open dates
+          $is_available = ($status === 59 || $status_desc === 'available');
+          $unavailable  = $is_available ? 0 : 1;
+
+          $checkin  = isset($info['checkinAllowed'])  ? (int)(bool)$info['checkinAllowed']  : null;
+          $checkout = isset($info['checkoutAllowed']) ? (int)(bool)$info['checkoutAllowed'] : null;
+          $min_stay = (isset($info['min_stay']) && $info['min_stay'] !== null) ? (int)$info['min_stay'] : null;
+
+          $wpdb->query(
+            $wpdb->prepare(
+              "INSERT INTO {$table}
+                (post_id, property_uid, for_date, price, currency, unavailable, checkin, checkout, min_stay, max_stay, updated_at)
+               VALUES (%d, %s, %s, %s, %s, %d, %s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE
+                post_id=VALUES(post_id), price=VALUES(price), currency=VALUES(currency),
+                unavailable=VALUES(unavailable), checkin=VALUES(checkin),
+                checkout=VALUES(checkout), min_stay=VALUES(min_stay), updated_at=VALUES(updated_at)",
+              $post_id, $property_id, $for_date, $price, null,
+              $unavailable, $checkin, $checkout, $min_stay, null, current_time('mysql')
+            )
+          );
+          $rows_upserted++;
+        }
+      }
+
+      $offset += $limit;
+      if (count($resp['properties']) < $limit) break;
+    }
+
+    $this->log("Loggia avail: upserted {$rows_upserted} rows for post_id={$post_id}.");
+    $this->flush();
   }
 
   private function log(string $msg): void {

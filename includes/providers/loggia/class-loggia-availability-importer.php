@@ -44,8 +44,8 @@ class HavenConnect_Loggia_Availability_Importer {
           $status_desc = (string)($info['status_desc'] ?? '');
           $price = isset($info['price']) && $info['price'] !== '' ? (float)$info['price'] : null;
 
-          // Treat "available" as available only if we have a price
-          $is_available = ($status === 59 || strtolower($status_desc) === 'available') && $price !== null;
+          // Availability determined by status alone; price may be null for open dates
+          $is_available = ($status === 59 || strtolower($status_desc) === 'available');
 
           $unavailable = $is_available ? 0 : 1;
           $checkin  = isset($info['checkinAllowed']) ? (int)!!$info['checkinAllowed'] : null;
